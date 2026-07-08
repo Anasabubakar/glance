@@ -1,5 +1,5 @@
 [project]
-name = "clacky"
+name = "glance"
 version = "0.1.0"
 description = "The open-source Windows agent companion — autonomous, but you can take it back."
 readme = "README.md"
@@ -13,14 +13,14 @@ dependencies = []
 claude = ["anthropic>=0.40"]
 openai = ["openai>=1.0"]
 gemini = ["google-generativeai>=0.8"]
-# Opt-in reliable Gmail/Calendar path (see clacky/shell/google_workspace.py).
+# Opt-in reliable Gmail/Calendar path (see glance/shell/google_workspace.py).
 # Needs a one-time OAuth setup; the browser-driving path works without this.
 google = ["google-api-python-client>=2.0", "google-auth-oauthlib>=1.0"]
 dev = ["pytest>=8.0"]
-# The companion shell (vendored from Bitshank under clacky/shell/). Core deps to
+# The companion shell (vendored from Bitshank under glance/shell/). Core deps to
 # launch voice + screen + pointing on the free Ollama path. Premium/optional
 # extras (elevenlabs, tavily, pypdf, pytesseract, …) are listed in
-# clacky/shell/requirements.txt — install only what you need.
+# glance/shell/requirements.txt — install only what you need.
 shell = [
     "PyQt6>=6.6.0",
     "mss>=9.0.1",
@@ -41,11 +41,11 @@ shell = [
 ]
 
 [project.scripts]
-clacky = "clacky.cli:main"
+glance = "glance.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["clacky", "clacky.agent", "clacky.providers"]
+packages = ["glance", "glance.agent", "glance.providers"]

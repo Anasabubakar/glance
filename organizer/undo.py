@@ -13,8 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-# Where undo history lives (mirrors Clicky's %LOCALAPPDATA%\Clicky convention).
-_HISTORY_DIR = Path.home() / ".clicky" / "organizer_history"
+_HISTORY_DIR = Path.home() / ".glance" / "organizer_history"
 
 
 @dataclass

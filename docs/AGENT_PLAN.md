@@ -1,6 +1,6 @@
-# Clacky — Agent Plan (v4): the computer-acting Windows port
+# Glance — Agent Plan (v4): the computer-acting Windows port
 
-**Decision (supersedes the v3 "direct-provider planner" design):** Clacky is a
+**Decision (supersedes the v3 "direct-provider planner" design):** Glance is a
 proper Windows port of the *agent-mode* Clicky — a screen companion that sees,
 talks, points, **and acts on the computer** by driving the GUI via Claude's
 Computer Use tool. The files-organizer becomes one safe skill inside it, not
@@ -23,7 +23,7 @@ pointing engine into acting.
 The base is a tray app with a signal-wired brain; it's a *guide* (points, never
 acts). We keep all its plumbing and replace exactly one call.
 
-| Base file (Bitshank) | What it gives us | Clacky use |
+| Base file (Bitshank) | What it gives us | Glance use |
 |---|---|---|
 | `companion_manager.py` `_end_capture_and_process` (~L496) | the core utterance→reply loop | host for the agent loop |
 | `companion_manager.py` `stream_response(...)` (~L731, L1024) | **the one-shot LLM call** | **← replace with the agent loop** |
@@ -53,14 +53,14 @@ shell (Bitshank)  ──screenshot+transcript──▶  AGENT BRAIN (Claude Comp
         └────────────────────────  ACTUATION (Win32 SendInput, logical px)
 ```
 
-Clacky-side modules (this repo):
+Glance-side modules (this repo):
 
 | Module | Status |
 |---|---|
-| `clacky/agent/permission.py` — `classify_action(Action) → Risk` | **built + unit-tested** (the safety-critical core) |
-| `clacky/agent/computer_loop.py` — `ComputerAgent` (gate + dispatch) | scaffold; gate path tested headlessly |
-| `clacky/agent/actuation.py` — `Actuator` / `WindowsActuator` / `RecordingActuator` | scaffold; recording backend tested |
-| `clacky/agent/{fileops,journal,planner}.py`, `providers/`, `heuristic` | **intact** — become the files skill + its real undo |
+| `glance/agent/permission.py` — `classify_action(Action) → Risk` | **built + unit-tested** (the safety-critical core) |
+| `glance/agent/computer_loop.py` — `ComputerAgent` (gate + dispatch) | scaffold; gate path tested headlessly |
+| `glance/agent/actuation.py` — `Actuator` / `WindowsActuator` / `RecordingActuator` | scaffold; recording backend tested |
+| `glance/agent/{fileops,journal,planner}.py`, `providers/`, `heuristic` | **intact** — become the files skill + its real undo |
 | `organizer/`, `agent/sdk_tools.py` | dead, left as-is |
 
 Tests: `tests/test_permission.py`, `tests/test_computer_loop.py` (11 passing).
@@ -111,7 +111,7 @@ pauses on anything it can't take back," not fake undo on GUI actions.
 ## 5. Build order
 
 - **Phase 1 — stand up the shell (the M0 that was skipped).** Lift Bitshank
-  into the repo as Clacky, rebrand (`Clicky`→`Clacky`, `%LOCALAPPDATA%\Clicky`,
+  into the repo as Glance, rebrand (`Clicky`→`Glance`, `%LOCALAPPDATA%\Clicky`,
   tray copy), get voice → screen → pointing running.
 - **Phase 2 — pointing → acting.** Implement `WindowsActuator` (SendInput,
   reuse Bitshank coords) and `ComputerAgent.run` (Anthropic Computer Use loop).

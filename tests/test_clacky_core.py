@@ -1,9 +1,9 @@
 """
-Headless tests for the Clacky CLI core — no provider SDKs, no network, no UI.
+Headless tests for the Glance CLI core — no provider SDKs, no network, no UI.
 Covers file-op safety, the planner (with a fake provider), the orchestrator
 execute→journal→undo roundtrip, dry-run, and risk classification.
 
-Run:  python -m pytest tests/test_clacky_core.py -v
+Run:  python -m pytest tests/test_glance_core.py -v
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from clacky.agent import fileops, journal, planner, runtime, session
-from clacky.agent.permission import Risk, classify_move, is_allowed
-from clacky.providers.base import LLMProvider
+from glance.agent import fileops, journal, planner, runtime, session
+from glance.agent.permission import Risk, classify_move, is_allowed
+from glance.providers.base import LLMProvider
 
 
 class FakeProvider(LLMProvider):
@@ -106,7 +106,7 @@ def test_planner_rejects_bad_provider_output(tmp_path, monkeypatch):
 
 def test_run_organize_and_undo(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    monkeypatch.setattr(journal, "HISTORY_DIR", tmp_path / ".clacky" / "history")
+    monkeypatch.setattr(journal, "HISTORY_DIR", tmp_path / ".glance" / "history")
     root = tmp_path / "Desktop"; root.mkdir(); _seed(root)
 
     sess, plan = runtime.run_organize(root, FakeProvider(), dry_run=False)

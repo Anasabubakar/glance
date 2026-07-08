@@ -4,9 +4,9 @@ through classify_action, and only authorized ones reach the actuator. Uses the
 RecordingActuator so there's no real desktop and no risk.
 """
 
-from clacky.agent.actuation import RecordingActuator
-from clacky.agent.computer_loop import ComputerAgent, Narrator
-from clacky.agent.permission import Action
+from glance.agent.actuation import RecordingActuator
+from glance.agent.computer_loop import ComputerAgent, Narrator
+from glance.agent.permission import Action
 
 
 class _Resolver:
