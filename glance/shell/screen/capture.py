@@ -16,8 +16,9 @@ ScreenShot now carries every number needed to convert between them.
 """
 
 import base64
-import ctypes
 import io
+import os
+import sys
 from dataclasses import dataclass
 from typing import List
 
@@ -52,17 +53,36 @@ class ScreenShot:
 def _query_dpi_scale() -> float:
     """Best-effort DPI scale for the primary monitor.
     Returns 1.0 if anything goes wrong."""
-    try:
-        # GetDpiForSystem returns DPI as integer (96 = 100%, 144 = 150%)
-        u = ctypes.windll.user32
-        u.SetProcessDPIAware()
-        gdfs = getattr(u, "GetDpiForSystem", None)
-        if gdfs:
-            return max(1.0, gdfs() / 96.0)
-        # Fallback: ratio of GetSystemMetrics(physical) vs (logical)
-        return 1.0
-    except Exception:
-        return 1.0
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            u = ctypes.windll.user32
+            u.SetProcessDPIAware()
+            gdfs = getattr(u, "GetDpiForSystem", None)
+            if gdfs:
+                return max(1.0, gdfs() / 96.0)
+        except Exception:
+            pass
+    else:
+        for var in ("GDK_SCALE", "QT_SCALE_FACTOR"):
+            try:
+                v = os.environ.get(var)
+                if v:
+                    return max(1.0, float(v))
+            except (ValueError, TypeError):
+                pass
+        try:
+            import subprocess
+            out = subprocess.check_output(
+                ["xrdb", "-query"], stderr=subprocess.DEVNULL, text=True, timeout=2
+            )
+            for line in out.splitlines():
+                if "Xft.dpi" in line:
+                    dpi = float(line.split(":")[-1].strip())
+                    return max(1.0, dpi / 96.0)
+        except Exception:
+            pass
+    return 1.0
 
 
 def capture_all_screens(max_width: int = 1280) -> List[ScreenShot]:

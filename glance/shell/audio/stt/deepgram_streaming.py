@@ -13,7 +13,7 @@ accumulates the `is_final` segments. `finish()` flushes the tail and returns the
 joined transcript. Any failure returns "" so the caller can fall back to batch —
 the full PCM buffer is always still captured.
 
-Opt-in via CLICKY/MITTS env (the manager gates it); off by default.
+Opt-in via GLANCE env (the manager gates it); off by default.
 """
 
 from __future__ import annotations

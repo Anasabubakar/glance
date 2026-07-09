@@ -6,25 +6,36 @@ orchestrator stays readable.
 
 from __future__ import annotations
 
-import ctypes
 import re
-from ctypes import wintypes
+import sys
 
 
 # ── Active-window title (for per-app context memory) ─────────────────────────
 
 def active_window_title() -> str:
-    try:
-        u = ctypes.windll.user32
-        hwnd = u.GetForegroundWindow()
-        if not hwnd:
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            u = ctypes.windll.user32
+            hwnd = u.GetForegroundWindow()
+            if not hwnd:
+                return ""
+            n = u.GetWindowTextLengthW(hwnd)
+            buf = ctypes.create_unicode_buffer(n + 1)
+            u.GetWindowTextW(hwnd, buf, n + 1)
+            return buf.value or ""
+        except Exception:
             return ""
-        n = u.GetWindowTextLengthW(hwnd)
-        buf = ctypes.create_unicode_buffer(n + 1)
-        u.GetWindowTextW(hwnd, buf, n + 1)
-        return buf.value or ""
-    except Exception:
-        return ""
+    else:
+        try:
+            import subprocess
+            out = subprocess.check_output(
+                ["xdotool", "getactivewindow", "getwindowname"],
+                stderr=subprocess.DEVNULL, text=True, timeout=2
+            )
+            return out.strip()
+        except Exception:
+            return ""
 
 
 def app_key(title: str) -> str:

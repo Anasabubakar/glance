@@ -1,12 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for Clicky Windows.
+PyInstaller spec for Glance.
 
 Build:
-    pyinstaller clicky.spec --clean --noconfirm
+    pyinstaller glance.spec --clean --noconfirm
 
 Output:
-    dist/Clicky/Clicky.exe           ← distribute this whole folder
+    dist/Glance/Glance.exe           ← distribute this whole folder
 
 We use --onedir (not --onefile) because:
   • faster-whisper + ctranslate2 ship large native DLLs that onefile
@@ -88,7 +88,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    # Shave size: Clicky never uses these heavy libs.
+    # Shave size: Glance never uses these heavy libs.
     excludes=[
         "matplotlib", "scipy", "pandas", "tkinter",
         "notebook", "jupyter", "IPython",
@@ -104,7 +104,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Clicky",
+    name="Glance",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -125,5 +125,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="Clicky",
+    name="Glance",
 )

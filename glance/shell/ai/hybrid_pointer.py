@@ -123,7 +123,17 @@ def _score_match(query: str, element_name: str, element_type: str) -> float:
 
 
 def _find_via_uia(query: str, min_score: float = 0.5) -> Optional[Target]:
-    """Walk the UIA tree for the foreground window + descendants, find best match."""
+    """Walk the accessibility tree for the foreground window, find best match.
+    Uses UIA on Windows, AT-SPI2 on Linux."""
+    import sys as _sys
+    if _sys.platform == "win32":
+        return _find_via_uia_windows(query, min_score)
+    else:
+        return _find_via_atspi(query, min_score)
+
+
+def _find_via_uia_windows(query: str, min_score: float = 0.5) -> Optional[Target]:
+    """Windows: walk the UIA tree."""
     try:
         import uiautomation as auto
     except ImportError:
@@ -131,8 +141,6 @@ def _find_via_uia(query: str, min_score: float = 0.5) -> Optional[Target]:
         return None
 
     try:
-        # Get the focused (foreground) window — pointing is almost always
-        # for the active app, and walking the whole desktop is slow.
         root = auto.GetForegroundControl()
         if root is None:
             root = auto.GetRootControl()
@@ -141,7 +149,6 @@ def _find_via_uia(query: str, min_score: float = 0.5) -> Optional[Target]:
         return None
 
     best: Optional[Tuple[float, "auto.Control"]] = None
-    # Bounded walk — UIA trees can be huge in Chrome/Electron
     queue: List[Tuple["auto.Control", int]] = [(root, 0)]
     visited = 0
     MAX_NODES = 3500
@@ -153,15 +160,13 @@ def _find_via_uia(query: str, min_score: float = 0.5) -> Optional[Target]:
         try:
             name = node.Name or ""
             ctrl_type = node.ControlTypeName or ""
-            rect = node.BoundingRectangle  # mss/uia returns Rect
+            rect = node.BoundingRectangle
         except Exception:
             continue
-        # Skip off-screen / zero-size
         if not rect or rect.width() <= 0 or rect.height() <= 0:
             pass
         else:
             score = _score_match(query, name, ctrl_type)
-            # Also try AutomationId and HelpText as backup match sources
             if score < 0.85:
                 try:
                     aid = getattr(node, "AutomationId", "") or ""
@@ -195,6 +200,74 @@ def _find_via_uia(query: str, min_score: float = 0.5) -> Optional[Target]:
         label=node.Name or node.ControlTypeName,
         source="uia",
         confidence=score,
+    )
+
+
+def _find_via_atspi(query: str, min_score: float = 0.5) -> Optional[Target]:
+    """Linux: walk the AT-SPI2 tree."""
+    try:
+        import pyatspi
+    except ImportError:
+        log.warning("pyatspi not installed — Tier 1 (AT-SPI2) disabled")
+        return None
+    try:
+        desktop = pyatspi.Registry.getDesktop(0)
+    except Exception as e:
+        log.debug("AT-SPI2 desktop lookup failed: %s", e)
+        return None
+
+    best_score = 0.0
+    best_result = None
+    visited = 0
+    MAX_NODES = 3500
+
+    def _walk(obj, depth=0):
+        nonlocal visited, best_score, best_result
+        if visited >= MAX_NODES or depth > 40:
+            return
+        visited += 1
+        try:
+            name = obj.name or ""
+            role_name = obj.getRoleName() or ""
+        except Exception:
+            return
+        try:
+            comp = obj.queryComponent()
+            bbox = comp.getExtents(pyatspi.DESKTOP_COORDS)
+            if bbox.width > 0 and bbox.height > 0:
+                score = _score_match(query, name, role_name)
+                if score >= min_score and score > best_score:
+                    best_score = score
+                    best_result = (name, role_name, bbox)
+        except Exception:
+            pass
+        try:
+            for i in range(obj.childCount):
+                _walk(obj.getChildAtIndex(i), depth + 1)
+        except Exception:
+            pass
+
+    for app in desktop:
+        try:
+            _walk(app)
+        except Exception:
+            continue
+
+    if best_result is None:
+        log.debug("AT-SPI2: no match for %r (scanned %d nodes)", query, visited)
+        return None
+
+    name, role_name, bbox = best_result
+    cx = bbox.x + bbox.width // 2
+    cy = bbox.y + bbox.height // 2
+    log.info("AT-SPI2 hit: %r -> %s [%s] @ (%d,%d) score=%.2f",
+             query, name, role_name, cx, cy, best_score)
+    return Target(
+        x=cx, y=cy,
+        bbox=(bbox.x, bbox.y, bbox.x + bbox.width, bbox.y + bbox.height),
+        label=name or role_name,
+        source="atspi",
+        confidence=best_score,
     )
 
 

@@ -1,5 +1,5 @@
 """
-actuation.py — the Windows action executor (Phase 2 scaffold).
+actuation.py — the OS action executor (Phase 2 scaffold).
 
 Turns the agent's chosen actions ("click here", "type this") into real OS
 input. This is the layer that makes Glance *act* rather than just point.
@@ -10,13 +10,10 @@ It deliberately mirrors the action vocabulary of Claude's Computer Use tool
 gate clears them.
 
 Coordinate contract: coordinates are LOGICAL screen pixels, the same space
-Bitshank's ``ai/hybrid_pointer.py`` ``Target.center_xy`` produces and the same
-the cursor overlay flies to. Reuse Bitshank's DPI / multi-monitor mapping —
-do NOT re-derive it here.
+the hybrid pointer produces and the same the cursor overlay flies to.
 
-Implementation note: the concrete backend is Win32 ``SendInput`` (via
-``pywin32`` or ``ctypes``) or ``pyautogui`` as a first cut. Kept abstract so
-the agent loop and the trust tests don't depend on a real desktop.
+Implementation: pynput (cross-platform). Kept abstract so the agent loop
+and the trust tests don't depend on a real desktop.
 """
 
 from __future__ import annotations
@@ -70,9 +67,10 @@ class RecordingActuator(Actuator):
 
 
 class WindowsActuator(Actuator):
-    """Real backend via pynput. Coordinates are PHYSICAL screen pixels (the same
-    space Win32 SetCursorPos uses). pynput is imported lazily so importing this
-    module (e.g. for RecordingActuator in tests) never requires it."""
+    """Real backend via pynput. pynput is cross-platform (Windows/Linux/macOS)
+    so this actuator works on all platforms despite the name. Coordinates are
+    PHYSICAL screen pixels. pynput is imported lazily so importing this module
+    (e.g. for RecordingActuator in tests) never requires it."""
 
     def __init__(self):
         from pynput.mouse import Controller as _Mouse, Button as _Button
@@ -133,3 +131,6 @@ class WindowsActuator(Actuator):
         finally:
             for m in reversed(held):
                 self._kbd.release(m)
+
+
+LinuxActuator = WindowsActuator

@@ -53,12 +53,13 @@ def _ensure_ollama_running():
 
     # Not responding — launch it detached so it survives the Python process
     try:
-        subprocess.Popen(
-            ["ollama", "serve"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-        )
+        import sys as _sys
+        kw = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if _sys.platform == "win32":
+            kw["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            kw["start_new_session"] = True
+        subprocess.Popen(["ollama", "serve"], **kw)
     except FileNotFoundError:
         return  # ollama not installed, provider will fail gracefully
 
@@ -76,7 +77,7 @@ _SOUL_CACHE: Optional[str] = None
 
 
 def _load_soul() -> str:
-    """Glance' persona/voice, from SOUL.md (OpenClicky pattern). Edit that file
+    """Glance' persona/voice, from SOUL.md (OpenGlance pattern). Edit that file
     to change how Glance sounds — it's the one place the voice lives."""
     global _SOUL_CACHE
     if _SOUL_CACHE is None:
@@ -722,7 +723,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
         self._emit_state(AppState.THINKING)
         self._suppress_llm_point = False  # accurate detection overrides LLM point-guess
         self._pointed_labels = set()      # dedup proactive points within this turn
-        self._main_point = None           # the ONE point to hold this response (Clicky)
+        self._main_point = None           # the ONE point to hold this response (Glance)
         self._main_point_fired = False    # fire it once, only after speech starts
         self._speech_started = False
         self._pointing_held = False       # → release the dwell at turn end
@@ -813,7 +814,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
             except Exception as e:
                 self.sig_error.emit(f"Skill error: {e}")
 
-            # Intent routing — the MODEL decides, not a verb regex (the OpenClicky
+            # Intent routing — the MODEL decides, not a verb regex (the OpenGlance
             # way). One fast Haiku call picks the lane: a hands-on task (the
             # computer-use agent), a spoken screen walkthrough, or plain chat. This
             # is what kills the brittle "typed vs type" keyword matching.
@@ -1103,7 +1104,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
             async def _speak_stream(text):
                 """Synthesize a sentence and queue it; the player plays queued
                 sentences in order → gapless. The single held point is fired by the
-                player as the first sentence starts (Clicky-style)."""
+                player as the first sentence starts (Glance-style)."""
                 nonlocal spoke_anything
                 text = (text or "").strip()
                 if not text or self._cancel_flag:

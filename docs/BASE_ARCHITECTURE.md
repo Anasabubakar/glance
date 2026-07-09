@@ -106,7 +106,7 @@ Everything in the KEEP column is reusable plumbing — well-built, with graceful
 
 ## 7. Things to watch when lifting
 
-- **Rebrand:** strings, `setApplicationName("Clicky")`, `%LOCALAPPDATA%\Clicky` paths, tray copy → Glance.
+- **Rebrand:** strings, `setApplicationName("Glance")`, `%LOCALAPPDATA%\Glance` paths, tray copy → Glance.
 - **The skills system here is regex→handler**, not markdown. Glance moves to SDK markdown skills (per SCOPE §4.2); the base's `skills_pkg` becomes the *fast-path command* matcher, not the agent's skill source.
 - **Don't expose the base's provider `stream_response` as the agent path** — that's the one-shot call you're replacing. Keep it only if you want a non-agentic "quick answer" mode alongside Agent Mode.
 - **Privacy Guard + sensitive-window skip** should also gate what the *agent* can see — reuse it on the SDK path.

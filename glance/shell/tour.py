@@ -54,9 +54,14 @@ class TourMixin:
     def _snap_to_uia(self, vx, vy):
         """Snap a PHYSICAL screen coordinate to the exact center of the small UI
         control under it (pixel-perfect), or return None to keep the original.
-        Guards against snapping to big containers/windows, whose center would be
-        far from the intended element. Reuses the same uiautomation the chat path
-        uses, so no new dependency."""
+        Uses UIA on Windows, AT-SPI2 on Linux."""
+        import sys as _sys
+        if _sys.platform == "win32":
+            return self._snap_to_uia_windows(vx, vy)
+        else:
+            return self._snap_to_atspi(vx, vy)
+
+    def _snap_to_uia_windows(self, vx, vy):
         try:
             import uiautomation as auto
             ctrl = auto.ControlFromPoint(int(vx), int(vy))
@@ -65,15 +70,11 @@ class TourMixin:
             r = ctrl.BoundingRectangle
             w, h = r.right - r.left, r.bottom - r.top
             name = (getattr(ctrl, "Name", "") or "")[:24]
-            # Only snap to genuine SMALL controls (buttons/fields/icons) — never big
-            # panels/containers (e.g. Premiere's custom "TabPanel" windows).
             if w <= 1 or h <= 1 or w > 600 or h > 360:
                 slog("SNAP", f"skip: control {w}x{h} too big '{name}'")
                 return None
             cx, cy = r.left + w / 2.0, r.top + h / 2.0
             dist = ((cx - vx) ** 2 + (cy - vy) ** 2) ** 0.5
-            # A real correction only NUDGES to the element's exact center. A far jump
-            # means we hit a container, not the target → keep the model's coordinate.
             if dist > 30:
                 slog("SNAP", f"skip: {dist:.0f}px jump to '{name}' (container)")
                 return None
@@ -81,6 +82,43 @@ class TourMixin:
             return (cx, cy)
         except Exception:
             return None
+
+    def _snap_to_atspi(self, vx, vy):
+        try:
+            import pyatspi
+            desktop = pyatspi.Registry.getDesktop(0)
+            for app in desktop:
+                try:
+                    comp = app.queryComponent()
+                    child = comp.getAccessibleAtPoint(
+                        int(vx), int(vy), pyatspi.DESKTOP_COORDS)
+                    if child is None:
+                        continue
+                    while True:
+                        try:
+                            ic = child.queryComponent()
+                            deeper = ic.getAccessibleAtPoint(
+                                int(vx), int(vy), pyatspi.DESKTOP_COORDS)
+                            if deeper is None or deeper == child:
+                                break
+                            child = deeper
+                        except Exception:
+                            break
+                    ext = child.queryComponent()
+                    bbox = ext.getExtents(pyatspi.DESKTOP_COORDS)
+                    w, h = bbox.width, bbox.height
+                    if w <= 1 or h <= 1 or w > 600 or h > 360:
+                        continue
+                    cx, cy = bbox.x + w / 2.0, bbox.y + h / 2.0
+                    dist = ((cx - vx) ** 2 + (cy - vy) ** 2) ** 0.5
+                    if dist > 30:
+                        continue
+                    return (cx, cy)
+                except Exception:
+                    continue
+        except ImportError:
+            pass
+        return None
 
     def _point_to_logical(self, cx, cy, screen_n=1):
         """Scale a coordinate from the screenshot's pixel space to logical screen
@@ -104,7 +142,7 @@ class TourMixin:
     def _parse_points(self, text: str, collect: bool = False):
         """Parse [POINT] tags and resolve them to accurate coords via UIA. If
         `collect`, only the FIRST resolved point is kept (in self._main_point) to be
-        held for the whole response — Clicky's model — instead of firing every tag
+        held for the whole response — Glance's model — instead of firing every tag
         immediately. Non-collect mode fires each immediately (whole-reply fallback)."""
         for match in POINT_RE.finditer(text):
             if getattr(self, "_suppress_llm_point", False):
@@ -114,7 +152,7 @@ class TourMixin:
             if label in self._pointed_labels:
                 continue  # already handled this one during the response
             self._pointed_labels.add(label)
-            # Reliable pointing (OpenClicky/Clicky-style): SNAP to the exact UIA
+            # Reliable pointing (OpenGlance/Glance-style): SNAP to the exact UIA
             # element when we can find it by label (~5ms, pixel-perfect), otherwise
             # TRUST THE MODEL'S OWN coordinate from the tag. Always shows a point —
             # no more "explains without pointing" when UIA doesn't have the element.
@@ -187,7 +225,7 @@ class TourMixin:
         return segs
 
     async def _run_narration(self, transcript: str):
-        """Screen tour, the way Clicky/OpenClicky actually do it: ONE model call
+        """Screen tour, the way Glance/OpenGlance actually do it: ONE model call
         returns the whole spoken tour with inline [POINT:x,y] tags placed right
         before the sentence that describes each element. Each point fires exactly
         when its sentence's audio starts, so pointer and voice share ONE channel

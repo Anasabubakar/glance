@@ -1,7 +1,7 @@
 """
 memory_store.py — Glance' cross-session memory + learned skills.
 
-Two things OpenClicky has that classic Clicky doesn't: it *remembers* you
+Two things OpenGlance has that classic Glance doesn't: it *remembers* you
 between sessions, and it can *learn a skill* once and reuse it. This is the
 disk-backed store behind both. One JSON file at ``~/.glance/memory.json``:
 

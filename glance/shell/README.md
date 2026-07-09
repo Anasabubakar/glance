@@ -1,21 +1,21 @@
-# Clicky for Windows 🔵
+# Glance for Windows 🔵
 
 > **An AI teaching companion that lives next to your cursor.**
 > Ask it anything about your screen — it points, explains, and guides you step-by-step, like a real tutor sitting beside you.
 
-Clicky is a Windows port of [farzaa/clicky](https://github.com/farzaa/clicky) (originally macOS/SwiftUI). Built with **Python 3.11+ and PyQt6**, runs fully in the background, works with every major AI provider.
+Glance is a Windows port of [farzaa/glance](https://github.com/farzaa/glance) (originally macOS/SwiftUI). Built with **Python 3.11+ and PyQt6**, runs fully in the background, works with every major AI provider.
 
 ---
 
-## Hi, this is Clicky 👋
+## Hi, this is Glance 👋
 
-[![Watch the demo](assets/clicky-demo.gif)](https://youtu.be/WYY9yJHDaEU)
+[![Watch the demo](assets/glance-demo.gif)](https://youtu.be/WYY9yJHDaEU)
 
 > 🎬 **[Watch full demo on YouTube →](https://youtu.be/WYY9yJHDaEU)**
 
-Clicky is a little AI buddy that **lives next to your cursor**. You hold a hotkey, ask it something about your screen, and it talks back — pointing at buttons, walking you through steps, drawing arrows on your screen. Think of it as having a patient tutor sitting beside you while you learn anything: video editing, coding, a new app, whatever.
+Glance is a little AI buddy that **lives next to your cursor**. You hold a hotkey, ask it something about your screen, and it talks back — pointing at buttons, walking you through steps, drawing arrows on your screen. Think of it as having a patient tutor sitting beside you while you learn anything: video editing, coding, a new app, whatever.
 
-No more Alt-Tab to ChatGPT. No more typing out descriptions of what's on your screen. Just hold **Ctrl + Alt + Space**, speak, and Clicky handles the rest.
+No more Alt-Tab to ChatGPT. No more typing out descriptions of what's on your screen. Just hold **Ctrl + Alt + Space**, speak, and Glance handles the rest.
 
 Works **100% offline** with Ollama, or plug in your Claude / OpenAI / Gemini / GitHub Copilot key for the full experience.
 
@@ -27,11 +27,11 @@ Works **100% offline** with Ollama, or plug in your Claude / OpenAI / Gemini / G
 ┌─────────────────────────────────────────────┐
 │  Your screen (browser, IDE, Premiere, etc.) │
 │                                             │
-│          🔵◂  ← Clicky blue buddy           │
+│          🔵◂  ← Glance blue buddy           │
 │          (floats beside your real cursor)   │
 │                                             │
 │  ┌──────────────────────────┐               │
-│  │  Clicky  [Claude]    —   │  ← panel      │
+│  │  Glance  [Claude]    —   │  ← panel      │
 │  │  ● Thinking…             │               │
 │  │  "The search bar is      │               │
 │  │   right here ↗"          │               │
@@ -48,7 +48,7 @@ The blue triangle sits **35 px right / 25 px below** your real cursor. When you 
 
 ### 🎙️ Voice Activation
 - Hold **Ctrl + Alt + Space** to push-to-talk
-- Say **"Clicky"** for hands-free wake word
+- Say **"Glance"** for hands-free wake word
 - Press **Esc** to stop any response or TTS mid-stream
 
 ### 👁️ Screen Aware
@@ -120,18 +120,18 @@ Switch mid-session from the system tray — takes ~1 second, no restart.
 - Every Q&A automatically logged to a local SQLite database
 - Ask **"what did we cover today?"** → summary of today's session
 - Ask **"what did we cover this week?"** → weekly digest
-- **SM-2 spaced repetition** — Clicky reminds you to review topics at optimal intervals (1 → 3 → 7 → 14 → 30 → 60 → 120 days)
+- **SM-2 spaced repetition** — Glance reminds you to review topics at optimal intervals (1 → 3 → 7 → 14 → 30 → 60 → 120 days)
 - Say **"quiz me on what I should review"** → flashcard session from your journal
-- Journal stored at `%LOCALAPPDATA%\Clicky\journal.db`
+- Journal stored at `%LOCALAPPDATA%\Glance\journal.db`
 
 ### 📄 Document Context (Drag & Drop)
-- Drag a **PDF, DOCX, TXT, MD, CSV, or code file** onto the Clicky panel
-- Clicky reads it and uses it as context for your next questions
+- Drag a **PDF, DOCX, TXT, MD, CSV, or code file** onto the Glance panel
+- Glance reads it and uses it as context for your next questions
 - Or use: **Tray → Journal → Attach document…** for a file picker
 - Supports multi-file: attach several docs and ask cross-document questions
 
 ### 🔍 OCR Fallback (Fine Print)
-- When query mentions "fine print", "small text", "read that", etc., Clicky runs **Tesseract OCR** on the screenshot
+- When query mentions "fine print", "small text", "read that", etc., Glance runs **Tesseract OCR** on the screenshot
 - Extracts text that's too small or low-contrast for the LLM's vision to read
 - Requires: Tesseract binary from [UB-Mannheim/tesseract](https://github.com/UB-Mannheim/tesseract/wiki)
 - Gracefully skipped if Tesseract isn't installed
@@ -145,7 +145,7 @@ Switch mid-session from the system tray — takes ~1 second, no restart.
 | Toggle | What it does |
 |---|---|
 | **Slow Mode** | 1.7× slower bezier flight + longer dwell — students can follow the pointer |
-| **Quiz Mode** | Clicky asks YOU questions instead of answering; evaluates in one sentence |
+| **Quiz Mode** | Glance asks YOU questions instead of answering; evaluates in one sentence |
 | **Privacy Guard** | Skips screenshot when password manager / banking window detected |
 | **Code Mode (auto)** | Code-specialist prompt when IDE is active |
 | **Multilingual** | Auto-detects language, responds in kind, switches TTS voice |
@@ -162,10 +162,10 @@ Switch mid-session from the system tray — takes ~1 second, no restart.
 - Records screen at 8 fps as an MP4 alongside a Markdown transcript of all Q&A
 - Start: **Tray → Lesson Recording → Start recording**
 - Stop: tray menu → produces `lesson_YYYY-MM-DD_HH-MM.mp4` + `lesson_YYYY-MM-DD_HH-MM_transcript.md`
-- Saved to `%LOCALAPPDATA%\Clicky\recordings\`
+- Saved to `%LOCALAPPDATA%\Glance\recordings\`
 
 ### 🖊️ Whiteboard Annotations
-- Clicky can draw directly on your screen as it explains:
+- Glance can draw directly on your screen as it explains:
   - `[ARROW:x1,y1->x2,y2]` — animated arrow between two points
   - `[CIRCLE:x,y,r:label]` — pulsing circle with optional label
   - `[UNDERLINE:x,y,w]` — underline beneath text
@@ -176,8 +176,8 @@ Switch mid-session from the system tray — takes ~1 second, no restart.
 ### 🖱️ Workflow Capture
 - Records your mouse clicks and keyboard strokes while you work
 - Start: **Tray → Workflow Capture → Start capturing my clicks**
-- Stop: **Tray → Workflow Capture → Stop + send to Clicky**
-- Ask: **"What did I just do?"** → Clicky narrates your workflow step-by-step
+- Stop: **Tray → Workflow Capture → Stop + send to Glance**
+- Ask: **"What did I just do?"** → Glance narrates your workflow step-by-step
 - Requires `pynput` (included in requirements.txt)
 
 ### 🎤 Voice Picker
@@ -194,7 +194,7 @@ Detects sensitive windows and skips the screenshot entirely:
 Create your own voice triggers — no pull request needed:
 
 ```python
-# ~/.clicky/skills/my_skill.py
+# ~/.glance/skills/my_skill.py
 import asyncio
 
 SKILL = {
@@ -210,7 +210,7 @@ async def open_calc(transcript: str, manager) -> str:
     return "Opening calculator for you."
 ```
 
-Place skill files in `~/.clicky/skills/` — Clicky auto-loads on startup.
+Place skill files in `~/.glance/skills/` — Glance auto-loads on startup.
 
 ---
 
@@ -224,7 +224,7 @@ Place skill files in `~/.clicky/skills/` — Clicky auto-loads on startup.
 ### 1. Clone
 ```bash
 git clone https://github.com/Bitshank-2338/clicky-windows.git
-cd clicky-windows
+cd glance-windows
 ```
 
 ### 2. Install dependencies
@@ -266,14 +266,14 @@ Tray → Model → Sign in to GitHub Copilot…
 → visit github.com/login/device → enter code shown in terminal
 ```
 
-Token cached at `%LOCALAPPDATA%\Clicky\github_token.json`. Default model = `gpt-4o-mini` (free tier).
+Token cached at `%LOCALAPPDATA%\Glance\github_token.json`. Default model = `gpt-4o-mini` (free tier).
 
 ### 5. Run
 ```bash
 python main.py
 ```
 
-A blue dot appears in your system tray. Clicky is now running.
+A blue dot appears in your system tray. Glance is now running.
 
 ---
 
@@ -291,7 +291,7 @@ OLLAMA_TEXT_MODEL=qwen2.5-coder:7b
 3. `pip install -r requirements.txt`
 4. `python main.py`
 
-Clicky uses **two Ollama model slots**: a vision model for screen-aware questions (pointing, "what's on screen?") and a text model for Code Mode / journal Q&A. Switch between them at any time from the tray: **Tray → Ollama → Vision model / Text model**.
+Glance uses **two Ollama model slots**: a vision model for screen-aware questions (pointing, "what's on screen?") and a text model for Code Mode / journal Q&A. Switch between them at any time from the tray: **Tray → Ollama → Vision model / Text model**.
 
 **Recommended free models (Tray → Ollama → Pull recommended…):**
 
@@ -318,14 +318,14 @@ python assets/make_icon.py
 
 # 2. Build
 pip install pyinstaller
-pyinstaller clicky.spec --clean --noconfirm
+pyinstaller glance.spec --clean --noconfirm
 
 # 3. Distribute
-# → dist/Clicky/  (entire folder)
+# → dist/Glance/  (entire folder)
 # → or build Setup.exe with Inno Setup using installer.iss
 ```
 
-The `dist/Clicky/Clicky.exe` runs on any Windows machine without Python. Include a `.env` file next to the exe with your API keys, or set them as system environment variables.
+The `dist/Glance/Glance.exe` runs on any Windows machine without Python. Include a `.env` file next to the exe with your API keys, or set them as system environment variables.
 
 See [BUILD.md](BUILD.md) for full packaging instructions including Inno Setup installer.
 
@@ -426,7 +426,7 @@ overlay.point_at(logical_x, logical_y)  ← correct position on any screen
 ## File Structure
 
 ```
-clicky-windows/
+glance-windows/
 ├── main.py                      # entry point — boots Qt, wires all signals
 ├── companion_manager.py         # async orchestrator + state machine
 ├── config.py                    # env loading, provider detection, priority chain
@@ -487,7 +487,7 @@ clicky-windows/
 │
 ├── .env                         # your API keys (not committed)
 ├── requirements.txt             # all Python dependencies
-├── clicky.spec                  # PyInstaller build spec
+├── glance.spec                  # PyInstaller build spec
 ├── installer.iss                # Inno Setup installer script
 ├── build.bat                    # one-click build script
 ├── BUILD.md                     # full build + packaging guide
@@ -521,7 +521,7 @@ clicky-windows/
 
 ## Troubleshooting
 
-**Clicky doesn't hear me**
+**Glance doesn't hear me**
 → Check default microphone in Windows Sound settings
 → Upgrade to Deepgram for better accuracy in noisy rooms
 
@@ -537,7 +537,7 @@ clicky-windows/
 
 **GitHub Copilot auth fails**
 → Re-run: Tray → Model → Sign in to GitHub Copilot…
-→ Check `%LOCALAPPDATA%\Clicky\github_token.json` exists
+→ Check `%LOCALAPPDATA%\Glance\github_token.json` exists
 
 **Esc doesn't stop audio**
 → Make sure `sounddevice` is installed (`pip install sounddevice`)
@@ -559,7 +559,7 @@ clicky-windows/
 
 ## Contributing
 
-Clicky is open to contributors from **anywhere in the world**. Whether you're a student who uses it every day, a developer who wants to add a feature, or someone who speaks a language we haven't supported yet — you're welcome here.
+Glance is open to contributors from **anywhere in the world**. Whether you're a student who uses it every day, a developer who wants to add a feature, or someone who speaks a language we haven't supported yet — you're welcome here.
 
 ### Ways to contribute
 
@@ -574,8 +574,8 @@ Clicky is open to contributors from **anywhere in the world**. Whether you're a 
 
 ```bash
 # 1. Fork on GitHub, then clone your fork
-git clone https://github.com/YOUR_USERNAME/clicky-windows.git
-cd clicky-windows
+git clone https://github.com/YOUR_USERNAME/glance-windows.git
+cd glance-windows
 
 # 2. Create a branch
 git checkout -b feat/your-feature-name
@@ -604,7 +604,7 @@ Look for Issues tagged **`good first issue`** — these are small, well-scoped t
 
 ## Credits
 
-- Original concept & macOS app: [farzaa/clicky](https://github.com/farzaa/clicky)
+- Original concept & macOS app: [farzaa/glance](https://github.com/farzaa/glance)
 - Windows port: Shashank Singh
 - Pointing engine: [Anthropic Computer Use API](https://docs.anthropic.com/en/docs/computer-use)
 - Local STT: [whisper.cpp](https://github.com/ggerganov/whisper.cpp) via [pywhispercpp](https://github.com/abdeladim-s/pywhispercpp) (same engine as [Handy](https://github.com/cjpais/Handy))

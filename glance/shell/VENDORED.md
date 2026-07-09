@@ -16,9 +16,9 @@ Kept deliberately minimal so the shell stays close to upstream and is easy to
 re-vendor:
 
 1. **Rebrand only**, applied across `*.py`:
-   - `Clicky` → `Glance` (display strings, app name, and the data dir
-     `%LOCALAPPDATA%\Clicky` → `%LOCALAPPDATA%\Glance`).
-   - `~/.clicky/` → `~/.glance/` (user skills dir).
+   - `Glance` → `Glance` (display strings, app name, and the data dir
+     `%LOCALAPPDATA%\Glance` → `%LOCALAPPDATA%\Glance`).
+   - `~/.glance/` → `~/.glance/` (user skills dir).
    - The `CLICKY_*` environment-variable names were renamed to `GLANCE_*`
      (config + `.env`); no back-compat aliases remain.
 2. **Glance's agentic layer** was then built on top of the vendored base and
@@ -58,8 +58,8 @@ falls back to Windows UIA). See `glance/shell/SETUP.md` for provider keys.
 
 ## Not yet done (tracked)
 
-- **Cosmetic/packaging rebrand:** `clicky.spec`, `installer.iss`, `build.bat`,
-  and the vendored `README.md`/docs still say "Clicky" — Phase 5 packaging.
+- **Cosmetic/packaging rebrand:** `glance.spec`, `installer.iss`, `build.bat`,
+  and the vendored `README.md`/docs still say "Glance" — Phase 5 packaging.
 - ~~`CLICKY_*` → `GLANCE_*` env rename~~ — **done** (config + `.env`).
 - **Wheel packaging** of `glance/shell/` as package data — Phase 5.
 - **Trim** unused `tutor_features/` (lessons/quizzes/collab) once the agent

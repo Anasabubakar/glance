@@ -1,21 +1,21 @@
 ; ────────────────────────────────────────────────────────────────────
-;  Clicky for Windows — Inno Setup script
+;  Glance for Windows — Inno Setup script
 ;
-;  Builds a single Setup-Clicky.exe from the PyInstaller dist folder.
+;  Builds a single Setup-Glance.exe from the PyInstaller dist folder.
 ;
 ;  Prerequisites:
-;    1. Run  build.bat  first (produces dist\Clicky\)
+;    1. Run  build.bat  first (produces dist\Glance\)
 ;    2. Install Inno Setup 6 from https://jrsoftware.org/isdl.php
 ;    3. Run:  iscc installer.iss
 ;
-;  Output:  dist\Setup-Clicky.exe   (single-file installer, ~200-400 MB)
+;  Output:  dist\Setup-Glance.exe   (single-file installer, ~200-400 MB)
 ; ────────────────────────────────────────────────────────────────────
 
-#define MyAppName        "Clicky"
+#define MyAppName        "Glance"
 #define MyAppVersion     "1.1.2"
-#define MyAppPublisher   "Shashank Singh"
-#define MyAppURL         "https://github.com/Bitshank-2338/clicky-windows"
-#define MyAppExeName     "Clicky.exe"
+#define MyAppPublisher   "Anas Abubakar"
+#define MyAppURL         "https://github.com/Anasabubakar/glance"
+#define MyAppExeName     "Glance.exe"
 
 [Setup]
 AppId={{9A4E3F2C-7B1D-4A8F-9C6E-3D7F1B5E9A0C}
@@ -29,7 +29,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=LICENSE
 OutputDir=dist
-OutputBaseFilename=Setup-Clicky
+OutputBaseFilename=Setup-Glance
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -47,12 +47,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon";  Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"
-Name: "startupicon";  Description: "Launch Clicky when Windows &starts";  GroupDescription: "Additional shortcuts:"; Flags: unchecked
+Name: "startupicon";  Description: "Launch Glance when Windows &starts";  GroupDescription: "Additional shortcuts:"; Flags: unchecked
 Name: "installollama"; Description: "Also download && install Ollama (free local AI engine, ~700 MB) — needed for the no-API-key mode"; GroupDescription: "Free AI engine:"
 
 [Files]
 ; Everything PyInstaller produced
-Source: "dist\Clicky\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\Glance\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}";                    Filename: "{app}\{#MyAppExeName}"
@@ -70,7 +70,7 @@ Filename: "powershell.exe"; \
   Tasks: installollama; \
   Flags: runhidden waituntilterminated
 
-; Offer to launch Clicky after install
+; Offer to launch Glance after install
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
@@ -79,8 +79,8 @@ begin
   if CurStep = ssPostInstall then
   begin
     MsgBox(
-      'Clicky installed successfully!' #13#13
-      'On first launch, Clicky will walk you through downloading the AI models' #13
+      'Glance installed successfully!' #13#13
+      'On first launch, Glance will walk you through downloading the AI models' #13
       'so it can answer your questions offline (free, no API keys needed).' #13#13
       'You can also use Claude / OpenAI / Gemini / GitHub Copilot — see' #13
       '.env.example inside the install folder for the template.',

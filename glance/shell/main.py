@@ -184,13 +184,21 @@ def main():
 
     # Journal folder
     def _open_journal():
-        import os, subprocess
-        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        import os, subprocess, sys as _sys
+        if _sys.platform == "win32":
+            base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        else:
+            base = os.path.expanduser("~/.local/share")
         path = os.path.join(base, "Glance")
         try:
-            os.startfile(path)
+            if _sys.platform == "win32":
+                os.startfile(path)
+            else:
+                subprocess.Popen(["xdg-open", path],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
-            subprocess.Popen(["explorer", path])
+            if _sys.platform == "win32":
+                subprocess.Popen(["explorer", path])
     tray.on_journal_open.connect(_open_journal)
 
     # Attach document (drag-drop alternative — file picker)
@@ -303,7 +311,12 @@ def main():
             out.write_text("\n".join(report), encoding="utf-8")
             tray.show_notification("Diagnostics saved", str(out))
             try:
-                os.startfile(str(out))
+                if sys.platform == "win32":
+                    os.startfile(str(out))
+                else:
+                    import subprocess as _sp
+                    _sp.Popen(["xdg-open", str(out)],
+                              stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
             except Exception:
                 pass
         except Exception as e:

@@ -9,7 +9,7 @@ actions.py — everything Glance DOES on the machine.
   * background research agents that report back during a lull
 
 Safety model: the file organizer is move-only + undoable by construction;
-the agent acts directly (like Clicky) with prompt-level restraint on
+the agent acts directly (like Glance) with prompt-level restraint on
 irreversible actions, a step cap, and Esc to stop.
 """
 
@@ -29,15 +29,21 @@ from ui.panel import AppState
 class ActionsMixin:
     def _get_actuator(self):
         if getattr(self, "_actuator", None) is None:
-            from glance.agent.actuation import WindowsActuator
-            self._actuator = WindowsActuator()
+            import sys as _sys
+            if _sys.platform == "win32":
+                from glance.agent.actuation import WindowsActuator
+                self._actuator = WindowsActuator()
+            else:
+                from glance.agent.actuation import LinuxActuator
+                self._actuator = LinuxActuator()
         return self._actuator
 
     def _tidy_desktop_icons(self):
-        """Sort desktop icons by name — the finishing touch after a sweep (folders
-        first, then shortcuts, alphabetical). Primary: Explorer's own view API
-        (IShellFolderViewDual.SortColumns via COM — verified working). Fallback:
-        the legacy WM_COMMAND menu post. Pure view-state: no files touched."""
+        """Sort desktop icons by name. Windows-only (COM/WM_COMMAND);
+        no-op on Linux where the file manager owns icon layout."""
+        import sys as _sys
+        if _sys.platform != "win32":
+            return
         try:
             import comtypes
             try:
@@ -351,7 +357,7 @@ class ActionsMixin:
     # Apps `start <name>` can't resolve (no App Paths entry). Each maps to a list
     # of candidates tried in order: absolute exe paths (if they exist) and URL
     # protocols. First hit wins; unknown names fall through to plain `start`.
-    _APP_LAUNCHERS = {
+    _APP_LAUNCHERS_WIN = {
         "steam": [r"C:\Program Files (x86)\Steam\steam.exe", "steam://open/main"],
         "discord": [r"%LOCALAPPDATA%\Discord\Update.exe|--processStart|Discord.exe",
                     "discord://"],
@@ -359,11 +365,34 @@ class ActionsMixin:
         "epic games": ["com.epicgames.launcher://apps"],
         "epic": ["com.epicgames.launcher://apps"],
         "telegram": [r"%APPDATA%\Telegram Desktop\Telegram.exe", "tg://"],
-        "slack": [r"%LOCALAPPDATA%\Microsoft\WindowsApps\Slack.exe",  # Store install
+        "slack": [r"%LOCALAPPDATA%\Microsoft\WindowsApps\Slack.exe",
                   r"%LOCALAPPDATA%\slack\slack.exe",
                   r"C:\Program Files\Slack\slack.exe"],
         "notion": [r"%LOCALAPPDATA%\Programs\Notion\Notion.exe", "notion://"],
     }
+
+    _APP_LAUNCHERS_LINUX = {
+        "steam": ["steam"],
+        "discord": ["discord"],
+        "spotify": ["spotify"],
+        "telegram": ["telegram-desktop", "telegram"],
+        "slack": ["slack"],
+        "notion": ["notion-app", "notion"],
+        "firefox": ["firefox"],
+        "chrome": ["google-chrome", "google-chrome-stable", "chromium-browser"],
+        "code": ["code"],
+        "vscode": ["code"],
+        "files": ["nautilus", "thunar", "dolphin", "nemo"],
+        "terminal": ["gnome-terminal", "konsole", "xfce4-terminal", "xterm"],
+        "text editor": ["gedit", "kate", "mousepad"],
+        "calculator": ["gnome-calculator", "kcalc"],
+        "notepad": ["gedit", "kate", "mousepad", "xed"],
+    }
+
+    @property
+    def _APP_LAUNCHERS(self):
+        import sys as _sys
+        return self._APP_LAUNCHERS_WIN if _sys.platform == "win32" else self._APP_LAUNCHERS_LINUX
 
     def _app_launchers(self) -> dict:
         """Built-in launcher map merged with the user's ``~/.glance/apps.json``:
@@ -392,48 +421,70 @@ class ActionsMixin:
         return merged
 
     def _launch_app(self, name: str):
-        """Open a Windows app directly (fast, reliable) instead of driving the GUI.
-        Known tricky apps (Steam etc.) launch via exe path / URL protocol; others
-        via `start <name>` (App Paths registry + PATH)."""
+        """Open an app directly (fast, reliable) instead of driving the GUI.
+        Known tricky apps launch via exe path / URL protocol (Windows) or
+        binary name (Linux); others fall through to OS-level defaults."""
         name = (name or "").strip()
         if not name:
             return
         import os
+        import sys as _sys
         import subprocess
         for cand in self._app_launchers().get(name.lower(), []):
-            if "://" in cand or cand.endswith(":"):
+            if _sys.platform == "win32":
+                if "://" in cand or cand.endswith(":"):
+                    try:
+                        os.startfile(cand)
+                        slog("ACT", f"launched '{name}' via {cand}")
+                        return
+                    except Exception:
+                        continue
+                parts = [os.path.expandvars(p) for p in cand.split("|")]
+                if os.path.isfile(parts[0]):
+                    try:
+                        subprocess.Popen(parts)
+                        slog("ACT", f"launched '{name}' via {parts[0]}")
+                        return
+                    except Exception:
+                        continue
+            else:
                 try:
-                    os.startfile(cand)                   # URL protocol
+                    subprocess.Popen(
+                        [cand], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                    )
                     slog("ACT", f"launched '{name}' via {cand}")
                     return
+                except FileNotFoundError:
+                    continue
                 except Exception:
                     continue
-            parts = [os.path.expandvars(p) for p in cand.split("|")]
-            if os.path.isfile(parts[0]):
-                try:
-                    subprocess.Popen(parts)
-                    slog("ACT", f"launched '{name}' via {parts[0]}")
-                    return
-                except Exception:
-                    continue
-        # No local install found but it's a known web app → open the logged-in
-        # web version instead of letting `start` fail with a "can't find" dialog.
         if name.lower() in self._WEB_APPS:
             slog("ACT", f"'{name}' not installed locally -> web app")
             self._open_url(name)
             return
-        try:
-            subprocess.Popen(["cmd", "/c", "start", "", name],
-                             creationflags=0x08000000)   # CREATE_NO_WINDOW
-        except Exception:
+        if _sys.platform == "win32":
             try:
-                os.startfile(name)                       # fallback
+                subprocess.Popen(["cmd", "/c", "start", "", name],
+                                 creationflags=0x08000000)
+            except Exception:
+                try:
+                    os.startfile(name)
+                except Exception as e:
+                    print("[glance-debug] launch error:", e, flush=True)
+        else:
+            try:
+                subprocess.Popen(
+                    ["xdg-open", name],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
             except Exception as e:
                 print("[glance-debug] launch error:", e, flush=True)
 
     # Common web apps → their URL, so "check my email" opens the real logged-in
     # web app in the user's browser (no OAuth, no API — Glance reads/acts with its
-    # hands). This is our take on OpenClicky's Workspace integration.
+    # hands). This is our take on OpenGlance's Workspace integration.
     _WEB_APPS = {
         "gmail": "https://mail.google.com", "email": "https://mail.google.com",
         "google calendar": "https://calendar.google.com",

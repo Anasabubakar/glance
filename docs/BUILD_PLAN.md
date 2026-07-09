@@ -2,21 +2,21 @@
 
 **The project:** Glance is a self-contained, **installable Windows app** — a screen companion that sees your screen, talks with you, points at things, and (the part nobody else has) **actually acts**: you say "clean this up" and it safely organizes your desktop, previewing every move and letting you undo.
 
-**The positioning:** *Clicky on Windows — and it has hands.* The Windows version is the demand-driven hook; the hands are the reason to download Glance instead of the obscure community ports.
+**The positioning:** *Glance on Windows — and it has hands.* The Windows version is the demand-driven hook; the hands are the reason to download Glance instead of the obscure community ports.
 
-**The one-liner (for the launch post):** *"Clicky finally works on Windows — and I gave it hands. Say 'clean this up' and watch it tidy your desktop, safely."*
+**The one-liner (for the launch post):** *"Glance finally works on Windows — and I gave it hands. Say 'clean this up' and watch it tidy your desktop, safely."*
 
-**Why it's a real project, not a clone:** Every existing Clicky — the Mac original and all the Windows ports — is a *guide*: it sees the screen and points, but never takes an action. Glance adds a content-aware, safety-gated action layer (move files with reasoning, preview, and undo) — a capability class none of them have.
+**Why it's a real project, not a clone:** Every existing Glance — the Mac original and all the Windows ports — is a *guide*: it sees the screen and points, but never takes an action. Glance adds a content-aware, safety-gated action layer (move files with reasoning, preview, and undo) — a capability class none of them have.
 
 ---
 
 ## Strategic read (why this works)
 
-The Windows-port space has 3+ community builds (`tekram`, `Bitshank`, `pango07/flicky`) and they're all obscure — Bitshank's is genuinely feature-rich and has ~1 star. The original got 5k stars from one viral tweet. **Conclusion: the bottleneck for a popular Windows Clicky is distribution, not code.** The "popular Windows version" slot is empty because none of the builders marketed it.
+The Windows-port space has 3+ community builds (`tekram`, `Bitshank`, `pango07/flicky`) and they're all obscure — Bitshank's is genuinely feature-rich and has ~1 star. The original got 5k stars from one viral tweet. **Conclusion: the bottleneck for a popular Windows Glance is distribution, not code.** The "popular Windows version" slot is empty because none of the builders marketed it.
 
 That's the opening. With an audience, you can take that slot *and* differentiate with a feature none of them have. Two distribution moments from one project:
 
-1. **Launch post** — "Clicky on Windows, with hands." Rides existing demand (instantly understandable, no explanation needed) and leads with novelty.
+1. **Launch post** — "Glance on Windows, with hands." Rides existing demand (instantly understandable, no explanation needed) and leads with novelty.
 2. **Hands demo** — the voice-driven desktop tidy as its own clip. Differentiated, shareable content.
 
 **On Farza-risk (official Windows version):** it's a timing bet you win by moving now, before any official build. And since the goal is a showcase, the engagement is banked even if official ships later — plus "+ hands" still differentiates from official. Move now.
@@ -116,7 +116,7 @@ Glance is **your own independent project** — not a fork, not a PR. MIT permits
 - Credit **farzaa** (original concept) and **Bitshank** (the Windows base) in the README.
 - Give it its own name/identity (done: Glance) so it reads as your product.
 
-Narrative: *"I built Glance — the Windows version of the cursor companion, and I gave it hands,"* with a credits line. Not "I forked Clicky."
+Narrative: *"I built Glance — the Windows version of the cursor companion, and I gave it hands,"* with a credits line. Not "I forked Glance."
 
 ---
 
@@ -132,4 +132,4 @@ Narrative: *"I built Glance — the Windows version of the cursor companion, and
 
 ## The framing that makes it land
 
-Lead with demand, differentiate with novelty: *"Clicky on Windows — and it has hands."* The Windows version gets people in the door (the demand already exists); the safe, reasoning-driven action layer is why they download **Glance** specifically and the part that shows you can design a feature, not just follow a tutorial.
+Lead with demand, differentiate with novelty: *"Glance on Windows — and it has hands."* The Windows version gets people in the door (the demand already exists); the safe, reasoning-driven action layer is why they download **Glance** specifically and the part that shows you can design a feature, not just follow a tutorial.

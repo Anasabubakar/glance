@@ -1,7 +1,7 @@
 # Glance — Agent Plan (v4): the computer-acting Windows port
 
 **Decision (supersedes the v3 "direct-provider planner" design):** Glance is a
-proper Windows port of the *agent-mode* Clicky — a screen companion that sees,
+proper Windows port of the *agent-mode* Glance — a screen companion that sees,
 talks, points, **and acts on the computer** by driving the GUI via Claude's
 Computer Use tool. The files-organizer becomes one safe skill inside it, not
 the product.
@@ -34,7 +34,7 @@ acts). We keep all its plumbing and replace exactly one call.
 | `ai/hybrid_pointer.py` `find_target() → Target(x,y,bbox,label,source)` | **Windows UIA** tree walk, logical px, pixel-perfect | **two uses:** actuation targeting **and** the trust classifier's element inspection |
 | `ai/element_locator.py` (beta `computer-use-2025-11-24`) | already calls Claude Computer Use to *locate* | **extend "locate" → "act"** |
 | `screen/capture.py` | multi-monitor screenshots | the loop's observe step |
-| `clicky.spec` / `installer.iss` / `build.bat` | PyInstaller + Inno Setup packaging | Phase 5, inherited |
+| `glance.spec` / `installer.iss` / `build.bat` | PyInstaller + Inno Setup packaging | Phase 5, inherited |
 
 **Why this is one seam, not a rewrite:** voice, screen capture, the
 UIA/pointing engine, DPI/multi-monitor correctness, tray, and `.exe` packaging
@@ -111,7 +111,7 @@ pauses on anything it can't take back," not fake undo on GUI actions.
 ## 5. Build order
 
 - **Phase 1 — stand up the shell (the M0 that was skipped).** Lift Bitshank
-  into the repo as Glance, rebrand (`Clicky`→`Glance`, `%LOCALAPPDATA%\Clicky`,
+  into the repo as Glance, rebrand (`Glance`→`Glance`, `%LOCALAPPDATA%\Glance`,
   tray copy), get voice → screen → pointing running.
 - **Phase 2 — pointing → acting.** Implement `WindowsActuator` (SendInput,
   reuse Bitshank coords) and `ComputerAgent.run` (Anthropic Computer Use loop).

@@ -1,12 +1,12 @@
 @echo off
 REM ────────────────────────────────────────────────────────────────────
-REM Clicky Windows — one-click build script
+REM Glance Windows — one-click build script
 REM
-REM Produces:  dist\Clicky\Clicky.exe   (portable folder)
-REM            Setup-Clicky.exe         (if Inno Setup is installed)
+REM Produces:  dist\Glance\Glance.exe   (portable folder)
+REM            Setup-Glance.exe         (if Inno Setup is installed)
 REM
 REM Usage:  build.bat           ← builds portable folder only
-REM         build.bat installer ← also builds Setup-Clicky.exe
+REM         build.bat installer ← also builds Setup-Glance.exe
 REM ────────────────────────────────────────────────────────────────────
 
 setlocal enabledelayedexpansion
@@ -14,7 +14,7 @@ cd /d "%~dp0"
 
 echo.
 echo ================================================================
-echo   Clicky for Windows — Build
+echo   Glance for Windows — Build
 echo ================================================================
 echo.
 
@@ -51,7 +51,7 @@ if exist dist rmdir /s /q dist
 
 REM ── 4. Run PyInstaller ─────────────────────────────────────────────
 echo [3/4] Building with PyInstaller (this takes 2-5 min)...
-python -m PyInstaller clicky.spec --clean --noconfirm
+python -m PyInstaller glance.spec --clean --noconfirm
 if errorlevel 1 (
     echo.
     echo [ERROR] Build failed. Check the output above.
@@ -60,14 +60,14 @@ if errorlevel 1 (
 
 REM ── 5. Copy .env.example and LICENSE into the dist folder ─────────
 echo [4/4] Bundling docs and env template...
-copy /y ".env.example" "dist\Clicky\.env.example" >nul
-copy /y "LICENSE"       "dist\Clicky\LICENSE"      >nul
-copy /y "README.md"     "dist\Clicky\README.md"    >nul
+copy /y ".env.example" "dist\Glance\.env.example" >nul
+copy /y "LICENSE"       "dist\Glance\LICENSE"      >nul
+copy /y "README.md"     "dist\Glance\README.md"    >nul
 
 echo.
 echo ================================================================
 echo   Portable build complete!
-echo   Run:  dist\Clicky\Clicky.exe
+echo   Run:  dist\Glance\Glance.exe
 echo ================================================================
 echo.
 
@@ -87,7 +87,7 @@ if /i "%1"=="installer" (
         iscc installer.iss
     )
     echo.
-    echo Installer: dist\Setup-Clicky.exe
+    echo Installer: dist\Setup-Glance.exe
 )
 
 endlocal

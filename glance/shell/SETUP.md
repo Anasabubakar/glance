@@ -1,4 +1,4 @@
-# Clicky for Windows — Setup Guide
+# Glance for Windows — Setup Guide
 
 ## Prerequisites
 
@@ -9,7 +9,7 @@
 ## Install
 
 ```bash
-cd clicky-windows
+cd glance
 
 # Student version (free, no API keys needed)
 pip install -r requirements-student.txt
@@ -35,7 +35,7 @@ python main.py
 ```
 
 A floating panel appears in the bottom-right corner.
-The Clicky icon appears in your system tray.
+The Glance icon appears in your system tray.
 
 **Hold `Ctrl+Alt+M`** to speak. Release to send.
 

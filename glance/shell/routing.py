@@ -57,7 +57,7 @@ class RoutingMixin:
         s = (transcript or "").strip().lower()
         if not s:
             return None
-        # Explicit "do it" trigger (Clicky's "…agent" pattern): a lead word that
+        # Explicit "do it" trigger (Glance's "…agent" pattern): a lead word that
         # FORCES the act path with no guessing — for control, and for reliable
         # demo takes. Checked BEFORE the length cap so long commands still trigger.
         if re.match(r"(glance[\s,]+)?"
@@ -102,7 +102,7 @@ class RoutingMixin:
         return None
 
     async def _route(self, transcript: str) -> dict:
-        """Decide the route WITH THE MODEL, not regex — the OpenClicky way. One
+        """Decide the route WITH THE MODEL, not regex — the OpenGlance way. One
         fast Haiku call returns a structured decision: the lane, plus any fact to
         remember/forget or skill to learn. Falls back to {'route': 'chat'}."""
         import anthropic

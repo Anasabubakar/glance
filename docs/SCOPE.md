@@ -1,7 +1,7 @@
 # Glance — Scope & Design (v3, direct providers)
 
 > **⚠️ SUPERSEDED for the current direction — see [`AGENT_PLAN.md`](AGENT_PLAN.md) (v4).**
-> The project is now a proper Windows port of the *computer-acting* Clicky: it
+> The project is now a proper Windows port of the *computer-acting* Glance: it
 > drives the GUI via Claude's Computer Use tool, with the file-organizer as one
 > safe skill. That brings back an agent loop (observe → decide → act), which the
 > v3 "one structured call" design below deliberately dropped. This file is kept
@@ -30,23 +30,23 @@
 
 | | macOS | Windows |
 |---|---|---|
-| **Closed (heyclicky)** | ✅ agent mode shipped | ⏳ **waitlist only** |
-| **Open source** | ✅ openclicky has agent mode | ❌ **empty** — ports are pointing-only |
+| **Closed (heyglance)** | ✅ agent mode shipped | ⏳ **waitlist only** |
+| **Open source** | ✅ openglance has agent mode | ❌ **empty** — ports are pointing-only |
 
-"Hands" is **not novel** — heyclicky and openclicky both have agentic mode on Mac. The gap is **Windows + agentic + open-source**, and it's empty: official Windows is a waitlist (demand proven), every Windows port (Bitshank/tekram/flicky) is pointing-only. Glance fills it.
+"Hands" is **not novel** — heyglance and openglance both have agentic mode on Mac. The gap is **Windows + agentic + open-source**, and it's empty: official Windows is a waitlist (demand proven), every Windows port (Bitshank/tekram/flicky) is pointing-only. Glance fills it.
 
 **Two-part wedge (equal weight):**
 1. **Windows-first + open source** — the agent people are waitlisted for, free and now.
-2. **Trust via reversibility, not interruption** — runs autonomously like Clicky, but everything it does is undoable; only irreversible actions pause to confirm. "The autonomous agent you can take back."
+2. **Trust via reversibility, not interruption** — runs autonomously like Glance, but everything it does is undoable; only irreversible actions pause to confirm. "The autonomous agent you can take back."
 
 ---
 
-## 2. What `openclicky` taught us (and what we copy)
+## 2. What `openglance` taught us (and what we copy)
 
-openclicky's Agent Mode is **not bespoke**. From its resource pack:
+openglance's Agent Mode is **not bespoke**. From its resource pack:
 
 - **Runtime = Claude Agent SDK** (`ClaudeAgentSDKBridge/`) + Codex fallback + a `BackgroundComputerUseRuntime/`. It delegates the agent loop; it doesn't build one.
-- **Skills = markdown packs.** ~25 files (`notion.md`, `spotify.md`, `blender.md`, `powerpoint.md`, `github-pr-workflow.md`, …) — domain know-how, not code — plus `skill-suggestion-rules.json` (context → which skill), `SOUL.md` (personality), `OpenClickyModelInstructions.md` (system behavior).
+- **Skills = markdown packs.** ~25 files (`notion.md`, `spotify.md`, `blender.md`, `powerpoint.md`, `github-pr-workflow.md`, …) — domain know-how, not code — plus `skill-suggestion-rules.json` (context → which skill), `SOUL.md` (personality), `OpenGlanceModelInstructions.md` (system behavior).
 - **"Money rule":** Agent SDK first (uses the user's already-paid Claude sign-in — free per task); direct API only as fallback (per-token). Local keys, no hosted login.
 
 **We copy all three.** Glance is *not* a from-scratch agent — building one would be a weaker reinvention of the SDK. Glance is the **Windows companion + a trust layer on top of the SDK**, with file-organizing as the first skill.
@@ -60,7 +60,7 @@ openclicky's Agent Mode is **not bespoke**. From its resource pack:
 **IS NOT:**
 - ❌ A from-scratch agent loop / planner (the SDK is the brain).
 - ❌ GUI pixel-clicking for v1 — hands are *filesystem/tool* actions (reliable, undoable). Pointing overlay stays a transparency flourish.
-- ❌ heyclicky's full breadth (Figma→site, etc.). The SDK *allows* it; v1 ships two skills, done well.
+- ❌ heyglance's full breadth (Figma→site, etc.). The SDK *allows* it; v1 ships two skills, done well.
 - ❌ Anything that deletes/sends/pays without an explicit separate confirm.
 - ❌ macOS/Linux; a provider zoo; hosted login.
 
@@ -115,13 +115,13 @@ The agent is powerful but must not be trusted with raw destructive operations. S
 
 This is what makes "an autonomous agent loose on my files" not terrifying — and it's the work a rushed clone skips.
 
-### 4.2 Skills = markdown (copy openclicky's pattern)
+### 4.2 Skills = markdown (copy openglance's pattern)
 
 A skill is a markdown pack describing *how* to do something + when to use it — not a Python plugin. v1 ships:
 
 - `skills/organize-desktop.md` — the reference skill: how to tidy a folder by intent, using the safe-file-ops tool.
 - One more (e.g. `skills/rename-by-content.md`) — proves it's a real skill system, not single-purpose.
-- `skills/suggestion-rules.json` — context (active app / phrase) → which skill to surface, mirroring openclicky's `skill-suggestion-rules.json`.
+- `skills/suggestion-rules.json` — context (active app / phrase) → which skill to surface, mirroring openglance's `skill-suggestion-rules.json`.
 - `SOUL.md` / `system-instructions.md` — personality + base behavior.
 
 New capabilities later are mostly *new markdown* + (only if needed) a new safe tool. That's the cheap content stream for launch follow-ups.
@@ -185,7 +185,7 @@ docs/               # SCOPE.md, BUILD_PLAN.md
 
 Principle: **autonomous by default, reversible always, interrupt only when it can't be taken back.**
 
-1. **Undo is the hero, not confirmation.** Runs like Clicky; every `REVERSIBLE` tool call is journaled; one word reverses the batch, across restarts.
+1. **Undo is the hero, not confirmation.** Runs like Glance; every `REVERSIBLE` tool call is journaled; one word reverses the batch, across restarts.
 2. **Confirmation is the rare exception** — only `DANGEROUS`/irreversible calls pause.
 3. **The agent can't reach destructive ops** — toolset is constrained to the safe layer; raw shell/delete isn't exposed. Defense in depth with the permission hook.
 4. **Policy is non-bypassable** — home-only roots, protected-path denylist, sensitive-file skip, batch caps, reuse Privacy-Guard for sensitive windows.
@@ -202,7 +202,7 @@ The permission hook is now the **safety-critical code** — it gets the hardest 
 - **Constrain the toolset for real** — if the agent can shell out, the safety guarantees leak. Lock tools down.
 - **Packaging + SDK = a harder boss fight** than a plain app (see M5). Budget for it.
 - **Move before official Windows ships.** The lane is open now.
-- **Don't out-scope into heyclicky's breadth.** Two skills, flawless, beats ten that flake on camera.
+- **Don't out-scope into heyglance's breadth.** Two skills, flawless, beats ten that flake on camera.
 
 ---
 
