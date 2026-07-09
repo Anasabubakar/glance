@@ -181,6 +181,32 @@ class Config:
             return "tavily"
         return "duckduckgo"
 
+    def fast_model(self) -> str:
+        """A cheap/fast model for routing and classification, per active provider."""
+        p = self.llm_provider()
+        if p == "claude":
+            return os.environ.get("GLANCE_FAST_MODEL", "claude-haiku-4-5-20251001")
+        if p == "openai":
+            return os.environ.get("GLANCE_FAST_MODEL", "gpt-4o-mini")
+        if p == "gemini":
+            return os.environ.get("GLANCE_FAST_MODEL", "gemini-2.0-flash")
+        if p == "copilot":
+            return os.environ.get("GLANCE_FAST_MODEL", "gpt-4o-mini")
+        return os.environ.get("GLANCE_FAST_MODEL", "llama3.2:3b")
+
+    def vision_model(self) -> str:
+        """A vision-capable model for tours, locating, and computer use."""
+        p = self.llm_provider()
+        if p == "claude":
+            return os.environ.get("GLANCE_VISION_MODEL", "claude-sonnet-5")
+        if p == "openai":
+            return os.environ.get("GLANCE_VISION_MODEL", "gpt-4o")
+        if p == "gemini":
+            return os.environ.get("GLANCE_VISION_MODEL", "gemini-2.0-flash")
+        if p == "copilot":
+            return os.environ.get("GLANCE_VISION_MODEL", "gpt-4o")
+        return os.environ.get("GLANCE_VISION_MODEL", self.get_ollama_model("vision"))
+
     def describe(self) -> dict:
         """Human-readable summary of active providers for the setup panel."""
         return {

@@ -225,28 +225,17 @@ class TourMixin:
         return segs
 
     async def _run_narration(self, transcript: str):
-        """Screen tour, the way Glance/OpenGlance actually do it: ONE model call
-        returns the whole spoken tour with inline [POINT:x,y] tags placed right
-        before the sentence that describes each element. Each point fires exactly
-        when its sentence's audio starts, so pointer and voice share ONE channel
-        (the text) and can never drift apart.
-
-        (The old multi-turn Computer-Use loop was structurally one step late:
-        forced tool_choice made turn 1 point with no speech, and every later
-        turn's text described the PREVIOUS turn's move — off by one, forever.)"""
+        """Screen tour: ONE model call returns the whole spoken tour with inline
+        [POINT:x,y] tags. Works with any vision-capable LLM provider."""
         import base64
-        import httpx
-        from ai.element_locator import _pick_resolution, _resize_jpeg, _API_URL
+        from ai.element_locator import _pick_resolution, _resize_jpeg
 
-        api_key = cfg.anthropic_api_key
-        # Use the screenshot prewarmed on key-press (captured while the user was
-        # still talking) — a fresh capture+resize here costs ~0.2s on the critical path.
         pre = getattr(self, "_prewarmed", None)
         if pre and (time.monotonic() - pre[0]) < 8.0:
             shots = pre[1]
         else:
             shots = capture_all_screens()
-        if not shots or not api_key:
+        if not shots:
             await self._reply_local("I can't see your screen right now.")
             return
         shot = shots[0]
@@ -262,7 +251,7 @@ class TourMixin:
             cx = max(0.0, min(float(cx), tw)); cy = max(0.0, min(float(cy), th))
             vx = cx / tw * pw + shot.physical_left
             vy = cy / th * ph + shot.physical_top
-            snapped = self._snap_to_uia(vx, vy)   # pixel-perfect if a small control's there
+            snapped = self._snap_to_uia(vx, vy)
             if snapped is not None:
                 vx, vy = snapped
             return int(round(vx / dscale)), int(round(vy / dscale))
@@ -283,21 +272,11 @@ class TourMixin:
             "say coordinates aloud, never say 'screenshot'. Talk for the ear: "
             "short, natural, encouraging — like you're genuinely happy to help."
         )
-        body = {"model": "claude-sonnet-5", "max_tokens": 1024, "system": system,
-                "messages": [{"role": "user", "content": [
-                    {"type": "image", "source": {"type": "base64",
-                     "media_type": "image/jpeg", "data": resized_b64}},
-                    {"type": "text", "text": transcript}]}]}
-        headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
-                   "content-type": "application/json"}
 
         self._cancel_flag = False
         self._emit_state(AppState.THINKING)
         held = False
         try:
-            import json as _json
-            http = self._get_http()   # shared warm pool — no per-tour TLS handshake
-
             async def _synth(t):
                 try:
                     audio = await self._get_tts().synth(t)
@@ -308,96 +287,52 @@ class TourMixin:
                     slog("ERROR", f"segment synth failed ({e}): {t[:40]!r}")
                     return b""
 
-            async def seg_stream():
-                """Yield (coords, sentence) segments AS the model writes them —
-                SSE streaming, so the greeting can speak while the rest of the
-                tour is still generating. Falls back to the batch call only if
-                the stream dies before yielding anything (a mid-stream failure
-                after speech has started just ends the tour early — never replays)."""
-                got_any = False
-                try:
-                    sbody = dict(body); sbody["stream"] = True
-                    slog("THINK", "tour model call (streaming)...")
-                    _t = time.perf_counter()
-                    buf, cur = "", None
-                    async with http.stream("POST", _API_URL, json=sbody,
-                                           headers=headers) as r:
-                        if r.status_code >= 400:
-                            detail = (await r.aread())[:200]
-                            raise RuntimeError(f"HTTP {r.status_code}: {detail}")
-                        async for line in r.aiter_lines():
-                            if not line.startswith("data:"):
-                                continue
-                            try:
-                                evt = _json.loads(line[5:].strip())
-                            except Exception:
-                                continue
-                            if evt.get("type") == "content_block_delta":
-                                d = evt.get("delta", {})
-                                if d.get("type") != "text_delta":
-                                    continue
-                                buf += d.get("text", "")
-                                # A segment completes when the NEXT tag appears.
-                                while True:
-                                    m = self._TOUR_TAG_RE.search(buf)
-                                    if not m:
-                                        break
-                                    pre = buf[:m.start()].strip()
-                                    if pre:
-                                        if not got_any:
-                                            slog("THINK", "...first segment at "
-                                                 f"{time.perf_counter() - _t:.2f}s")
-                                        got_any = True
-                                        yield (cur, pre)
-                                    cur = (int(m.group(1)), int(m.group(2)))
-                                    buf = buf[m.end():]
-                            elif evt.get("type") == "message_stop":
-                                break
-                    # Trailing segment (strip any dangling partial tag).
-                    tail = re.sub(r"\[POINT:[^\]]*$", "", buf).strip()
-                    if tail:
-                        got_any = True
-                        yield (cur, tail)
-                    slog("THINK", f"...stream done in {time.perf_counter() - _t:.2f}s")
-                    if got_any:
-                        return
-                except Exception as e:
-                    slog("ERROR", f"tour stream failed: {e}")
-                    self._reset_clients()
-                    if got_any:
-                        return            # spoke some of it — end early, don't replay
-                # Batch fallback — one plain call, then parse (the pre-stream path).
-                slog("THINK", "tour model call (batch fallback)...")
-                try:
-                    r = await self._get_http().post(_API_URL, json=body,
-                                                    headers=headers)
-                    if r.status_code >= 400:
-                        slog("ERROR", f"tour HTTP {r.status_code}: {r.text[:200]}")
-                        return
-                    text = " ".join(b.get("text", "") for b in
-                                    r.json().get("content", [])
-                                    if b.get("type") == "text")
-                    for seg in self._parse_tour_segments(text):
-                        yield seg
-                except Exception as e:
-                    slog("ERROR", f"tour batch fallback failed: {e}")
-                    self._reset_clients()
+            llm = self._get_llm()
+            model = cfg.vision_model()
 
-            # Producer: pull segments off the stream, start each synth IMMEDIATELY.
             seg_q: asyncio.Queue = asyncio.Queue()
 
             async def _pump():
+                buf, cur = "", None
+                got_any = False
                 try:
-                    async for coords, seg_text in seg_stream():
+                    slog("THINK", f"tour model call (streaming via {cfg.llm_provider()})...")
+                    _t = time.perf_counter()
+                    async for chunk in llm.stream_response(
+                        user_text=transcript,
+                        screenshots_b64=[resized_b64],
+                        history=[],
+                        system_prompt=system,
+                        model=model,
+                    ):
+                        buf += chunk
+                        while True:
+                            m = self._TOUR_TAG_RE.search(buf)
+                            if not m:
+                                break
+                            pre = buf[:m.start()].strip()
+                            if pre:
+                                if not got_any:
+                                    slog("THINK", f"...first segment at "
+                                         f"{time.perf_counter() - _t:.2f}s")
+                                got_any = True
+                                seg_q.put_nowait(
+                                    (cur, pre,
+                                     asyncio.create_task(_synth(pre))))
+                            cur = (int(m.group(1)), int(m.group(2)))
+                            buf = buf[m.end():]
+                    tail = re.sub(r"\[POINT:[^\]]*$", "", buf).strip()
+                    if tail:
+                        got_any = True
                         seg_q.put_nowait(
-                            (coords, seg_text,
-                             asyncio.create_task(_synth(seg_text))))
+                            (cur, tail, asyncio.create_task(_synth(tail))))
+                    slog("THINK", f"...stream done in {time.perf_counter() - _t:.2f}s")
+                except Exception as e:
+                    slog("ERROR", f"tour stream failed: {e}")
                 finally:
                     seg_q.put_nowait(None)
             pump_task = asyncio.create_task(_pump())
 
-            # Consumer: play in order, gapless; each point fires exactly as its
-            # sentence's audio starts. Later segments synth while earlier ones play.
             from audio.playback import play_mp3_async
             spoken = []
             while True:
@@ -426,7 +361,7 @@ class TourMixin:
                     await play_mp3_async(audio)
                 elif seg_text:
                     try:
-                        await self._get_tts().speak(seg_text)   # synth-miss fallback
+                        await self._get_tts().speak(seg_text)
                     except Exception as e:
                         slog("ERROR", f"segment SKIPPED (no audio): {seg_text[:40]!r} ({e})")
             await pump_task
@@ -436,7 +371,7 @@ class TourMixin:
                 return
             clean = " ".join(spoken)
             self.sig_response_done.emit(clean)
-            self._last_response = clean   # tag-free, for "say it again"
+            self._last_response = clean
         except Exception as e:
             import traceback
             print("[glance-debug] narration error:", flush=True)

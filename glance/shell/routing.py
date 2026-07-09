@@ -102,14 +102,25 @@ class RoutingMixin:
         return None
 
     async def _route(self, transcript: str) -> dict:
-        """Decide the route WITH THE MODEL, not regex — the OpenGlance way. One
-        fast Haiku call returns a structured decision: the lane, plus any fact to
-        remember/forget or skill to learn. Falls back to {'route': 'chat'}."""
-        import anthropic
+        """Decide the route: structured Anthropic routing when available,
+        generic text classification through the active LLM otherwise.
+        Falls back to {'route': 'chat'}."""
+        if cfg.anthropic_api_key:
+            result = await self._route_anthropic(transcript)
+            if result is not None:
+                return result
+        try:
+            return await self._route_generic(transcript)
+        except Exception as e:
+            print(f"[glance-debug] generic route error: {e}", flush=True)
+        return {"route": "chat"}
+
+    async def _route_anthropic(self, transcript: str) -> dict | None:
+        """Structured routing via Anthropic tool_choice — fast and reliable."""
         try:
             client = self._get_anthropic()
             sys_prompt = (
-                    "Route requests for Glance, a Windows voice assistant that can "
+                    "Route requests for Glance, a voice assistant that can "
                     "see the screen, talk, point, control the computer, and remember "
                     "things across sessions. Pick ONE route via the `route` tool:\n"
                     "- act: DO something on the computer — open an app, click, type, "
@@ -158,7 +169,7 @@ class RoutingMixin:
             if workspace_on:
                 route_enum.insert(0, "workspace")
             resp = await client.messages.create(
-                model="claude-haiku-4-5-20251001", max_tokens=256,
+                model=cfg.fast_model(), max_tokens=256,
                 system=sys_prompt,
                 tools=[{"name": "route", "description": "Choose the route.",
                         "input_schema": {"type": "object", "properties": {
@@ -174,7 +185,56 @@ class RoutingMixin:
                 if b.type == "tool_use":
                     return b.input or {"route": "chat"}
         except Exception as e:
-            print("[glance-debug] route error:", e, flush=True)
-            self._reset_clients()   # stale pool (e.g. after sleep) → rebuild next turn
+            print("[glance-debug] anthropic route error:", e, flush=True)
+            self._reset_clients()
+        return None
+
+    async def _route_generic(self, transcript: str) -> dict:
+        """Route via the active LLM provider (text classification).
+        Used when no Anthropic API key is available."""
+        import json as _json
+        route_enum = ["act", "walkthrough", "remember", "forget",
+                      "learn_skill", "background", "organize", "undo", "chat"]
+        sys = (
+            "You are a request classifier. Given the user's request, reply with "
+            "ONLY a JSON object like {\"route\": \"chat\"}. Pick ONE route:\n"
+            "act = do something on the computer (open, click, type, navigate)\n"
+            "walkthrough = spoken tour of the screen\n"
+            "remember = save a fact for later\n"
+            "forget = forget something previously saved\n"
+            "learn_skill = teach a reusable routine\n"
+            "background = research something in the background\n"
+            "organize = tidy/clean up a folder of files\n"
+            "undo = reverse the last file cleanup\n"
+            "chat = question or conversation (default)\n"
+            "For remember/forget, include a \"fact\" field with the distilled fact."
+        )
+        full = ""
+        try:
+            async for chunk in self._get_llm().stream_response(
+                user_text=transcript, screenshots_b64=[], history=[],
+                system_prompt=sys, model=cfg.fast_model(),
+            ):
+                full += chunk
+        except Exception:
+            return {"route": "chat"}
+        # Parse JSON from response (tolerant of markdown fences)
+        text = full.strip()
+        if "```" in text:
+            text = text.split("```")[1].strip()
+            if text.startswith("json"):
+                text = text[4:].strip()
+        try:
+            parsed = _json.loads(text)
+            route = parsed.get("route", "chat")
+            if route not in route_enum:
+                route = "chat"
+            parsed["route"] = route
+            return parsed
+        except Exception:
+            # Last resort: look for a route keyword in the raw text
+            for r in route_enum:
+                if r in full.lower():
+                    return {"route": r}
         return {"route": "chat"}
 
