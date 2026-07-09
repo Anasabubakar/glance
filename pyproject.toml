@@ -13,9 +13,18 @@ openai = ["openai>=1.0"]
 gemini = ["google-generativeai>=0.8"]
 google = ["google-api-python-client>=2.0", "google-auth-oauthlib>=1.0"]
 dev = ["pytest>=8.0"]
+# All providers at once — for users who want to switch freely.
+all-providers = [
+    "anthropic>=0.40",
+    "openai>=1.0",
+    "google-generativeai>=0.8",
+    "ollama>=0.3.0",
+]
 # The companion shell (vendored under glance/shell/). Core deps to launch
 # voice + screen + pointing. Premium/optional extras (elevenlabs, tavily,
 # pypdf, pytesseract, …) are listed in glance/shell/requirements.txt.
+# Note: pyatspi (Linux AT-SPI2 bindings) is a system package installed via
+# apt (python3-pyatspi), not pip. See README for Linux setup.
 shell = [
     "PyQt6>=6.6.0",
     "mss>=9.0.1",
@@ -33,7 +42,6 @@ shell = [
     "ollama>=0.3.0",
     "pynput>=1.7.7",
     "uiautomation>=2.0.18; sys_platform == 'win32'",
-    "pyatspi>=0.4; sys_platform == 'linux'",
 ]
 
 [project.scripts]
