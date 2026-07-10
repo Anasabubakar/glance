@@ -2,7 +2,6 @@
 
 import React from "react";
 import { motion } from "motion/react";
-import { PhosphorIcon } from "@phosphor-icons/react";
 
 export default function Nav() {
   return (

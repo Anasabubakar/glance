@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "motion/react";
-import { Eye, CursorClick, Gear, Zap } from "@phosphor-icons/react";
+import { Eye, CursorClick, Gear, Lightning } from "@phosphor-icons/react";
 
 const tiles = [
   {
@@ -55,7 +55,7 @@ const tiles = [
   {
     title: "Autonomous Action",
     desc: "From opening apps to managing files, Glance executes complex workflows while you talk.",
-    icon: <Zap size={24} />,
+    icon: <Lightning size={24} />,
     size: "md:col-span-1",
     content: (
       <div className="relative h-full w-full bg-zinc-900 rounded-2xl border border-white/5 overflow-hidden p-6 font-mono text-[10px] text-zinc-500 space-y-2">

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "motion/react";
-import { ArrowLeft, ArrowRight, Undo } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight } from "@phosphor-icons/react";
 
 export default function TrustLayer() {
   return (
@@ -15,7 +15,7 @@ export default function TrustLayer() {
             viewport={{ once: true }}
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-500 text-xs font-bold tracking-wide uppercase"
           >
-            <Undo size={14} />
+            <ArrowLeft size={14} />
             <span>The Trust Layer</span>
           </motion.div>
           
@@ -57,7 +57,7 @@ export default function TrustLayer() {
                 whileTap={{ scale: 0.95 }}
                 className="w-20 h-20 rounded-full bg-white text-zinc-950 flex items-center justify-center shadow-2xl group-hover:shadow-blue-500/20 transition-all"
               >
-                <Undo size={32} weight="bold" />
+                <ArrowLeft size={32} weight="bold" />
               </motion.button>
               <div className="text-center">
                 <div className="text-xs font-bold text-white uppercase tracking-widest">Undo Batch</div>
