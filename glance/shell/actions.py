@@ -182,6 +182,12 @@ class ActionsMixin:
         """Opt-in reliable path: a small tool-use loop over the Gmail/Calendar API
         (no screen, no clicking), then ONE short spoken summary. Separate from the
         computer-use loop so structured API data never mixes with screenshots."""
+        if not cfg.anthropic_api_key:
+            await self._reply_local(
+                "Google Workspace tools require an Anthropic API key — "
+                "they use Claude's native tool-use loop which isn't "
+                "available through other providers.")
+            return
         import json
         import anthropic
         WS_TOOLS = [
