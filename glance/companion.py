@@ -49,7 +49,10 @@ def launch() -> int:
     try:
         runpy.run_path(_ENTRY, run_name="__main__")
     except ImportError as e:
-        missing = getattr(e, "name", None) or "a dependency"
+        missing = getattr(e, "name", None) or str(e)
+        if "root" in missing.lower():
+            print(f"Glance: {missing}", file=sys.stderr)
+            return 3
         print(
             "Glance: the companion shell needs its dependencies.\n"
             '       pip install -e ".[shell]"\n'
