@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Glance
+GenericName=AI Desktop Companion
+Comment=Open-source AI companion — sees your screen, points at things, and acts on them
+Exec=glance-companion
+Icon=glance
+Terminal=false
+Type=Application
+Categories=Utility;Accessibility;
+Keywords=AI;assistant;voice;screen;companion;
+StartupNotify=true
+StartupWMClass=Glance
+MimeType=

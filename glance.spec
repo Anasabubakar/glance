@@ -1,8 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 #
-# PyInstaller spec for the Glance voice companion (.exe).
-# Build on Windows:   pip install pyinstaller   then   pyinstaller glance.spec
-# Output: dist/Glance/Glance.exe  (folder build). See docs/BUILDING.md.
+# PyInstaller spec for the Glance voice companion (Windows .exe).
+# Build:  cd <repo-root> && python -m PyInstaller glance.spec --clean --noconfirm
+# Output: dist\Glance\Glance.exe  (folder build). See docs/BUILDING.md.
 #
 # The vendored shell imports by BARE name (`from config import`, `from ai import`),
 # so we put glance/shell on the path and bundle those as TOP-LEVEL modules; the
@@ -11,7 +11,11 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("glance/shell"))  # so bare shell imports resolve
+# ── Compute repo root from this spec file's location ──────────────────
+# SPECPATH is set by PyInstaller to the directory containing this .spec file.
+ROOT = os.path.abspath(SPECPATH)
+
+sys.path.insert(0, os.path.join(ROOT, "glance", "shell"))
 
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
@@ -44,14 +48,14 @@ hiddenimports += collect_submodules("glance")
 # Runtime data the shell reads by path. Top-level modules see __file__'s parent as
 # the bundle root, so SOUL.md goes to ".", and the asset/skill dirs alongside.
 datas += [
-    ("glance/shell/SOUL.md", "."),
-    ("glance/shell/skills",  "skills"),
-    ("glance/shell/assets",  "assets"),
+    (os.path.join(ROOT, "glance", "shell", "SOUL.md"), "."),
+    (os.path.join(ROOT, "glance", "shell", "skills"),  "skills"),
+    (os.path.join(ROOT, "glance", "shell", "assets"),  "assets"),
 ]
 
 a = Analysis(
-    ["packaging/glance_app.py"],
-    pathex=[".", "glance/shell"],
+    [os.path.join(ROOT, "packaging", "glance_app.py")],
+    pathex=[ROOT, os.path.join(ROOT, "glance", "shell")],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
@@ -84,7 +88,7 @@ exe = EXE(
     exclude_binaries=True,
     name="Glance",
     console=False,          # windowed release build (no console window)
-    icon="glance/shell/assets/icon.ico",
+    icon=os.path.join(ROOT, "glance", "shell", "assets", "icon.ico"),
 )
 
 coll = COLLECT(
