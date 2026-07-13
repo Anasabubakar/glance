@@ -8,6 +8,7 @@ from .. import config
 
 def get_provider(name: str | None = None, model: str | None = None) -> LLMProvider:
     name = (name or config.active_provider()).lower()
+    model = model or config.active_model()
     if name == "claude":
         from .claude import ClaudeProvider
         return ClaudeProvider(model=model)

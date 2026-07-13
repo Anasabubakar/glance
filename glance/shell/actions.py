@@ -180,17 +180,19 @@ class ActionsMixin:
 
     async def _run_workspace(self, instruction: str):
         """Opt-in reliable path: a small tool-use loop over the Gmail/Calendar API
-        (no screen, no clicking), then ONE short spoken summary. Separate from the
-        computer-use loop so structured API data never mixes with screenshots."""
-        if not cfg.anthropic_api_key:
-            await self._reply_local(
-                "Google Workspace tools require an Anthropic API key — "
-                "they use Claude's native tool-use loop which isn't "
-                "available through other providers.")
-            return
-        import json
-        import anthropic
-        WS_TOOLS = [
+        (no screen, no clicking), then ONE short spoken summary. Dispatches to
+        the active provider's tool-use API."""
+        provider = cfg.llm_provider()
+        if provider == "claude" and cfg.anthropic_api_key:
+            await self._run_workspace_anthropic(instruction)
+        elif provider in ("openai", "copilot") and cfg.openai_api_key:
+            await self._run_workspace_openai(instruction)
+        else:
+            await self._run_workspace_generic(instruction)
+
+    def _ws_tools_schema(self):
+        """Shared workspace tool definitions (Anthropic format)."""
+        return [
             {"name": "gmail_list",
              "description": "List Gmail messages matching a search query (default "
                             "'is:unread'). Returns from/subject/snippet.",
@@ -210,19 +212,27 @@ class ActionsMixin:
                  "count": {"type": "integer"}, "days": {"type": "integer"}},
                  "additionalProperties": False}},
         ]
-        system = (
+
+    def _ws_system(self):
+        return (
             "You are Glance, handling the user's Gmail and Google Calendar through "
             "these tools. Use them to get what you need, then reply in ONE short, "
             "natural spoken line for the ear — summarize, never read raw data or "
             "email addresses aloud. Only send an email when the user clearly asked "
             "to, and name the recipient in your reply. Keep it warm and brief.")
+
+    async def _run_workspace_anthropic(self, instruction: str):
+        """Workspace via Anthropic tool-use."""
+        import json
+        WS_TOOLS = self._ws_tools_schema()
+        system = self._ws_system()
         client = self._get_anthropic()
         messages = [{"role": "user", "content": instruction}]
         self._emit_state(AppState.THINKING)
         try:
             for _ in range(6):
                 resp = await client.messages.create(
-                    model="claude-sonnet-5", max_tokens=1024,
+                    model=cfg.vision_model(), max_tokens=1024,
                     system=system, tools=WS_TOOLS, messages=messages)
                 messages.append({"role": "assistant",
                                  "content": [b.model_dump() for b in resp.content]})
@@ -244,6 +254,107 @@ class ActionsMixin:
                 messages.append({"role": "user", "content": results})
         except Exception as e:
             print("[glance-debug] workspace error:", e, flush=True)
+            await self._reply_local("I couldn't reach your Google account just now.")
+
+    async def _run_workspace_openai(self, instruction: str):
+        """Workspace via OpenAI function calling."""
+        import json
+        from openai import AsyncOpenAI
+
+        tools = [
+            {"type": "function", "function": {
+                "name": t["name"], "description": t["description"],
+                "parameters": t["input_schema"]}}
+            for t in self._ws_tools_schema()
+        ]
+        system = self._ws_system()
+        client = AsyncOpenAI(api_key=cfg.openai_api_key)
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": instruction},
+        ]
+        self._emit_state(AppState.THINKING)
+        try:
+            for _ in range(6):
+                resp = await client.chat.completions.create(
+                    model=cfg.vision_model(), max_tokens=1024,
+                    tools=tools, messages=messages)
+                choice = resp.choices[0]
+                msg = choice.message
+                messages.append(msg.model_dump(exclude_none=True))
+                if not msg.tool_calls:
+                    await self._reply_local(msg.content or "Done.")
+                    return
+                for tc in msg.tool_calls:
+                    args = json.loads(tc.function.arguments) if isinstance(
+                        tc.function.arguments, str) else tc.function.arguments
+                    try:
+                        data = await asyncio.to_thread(
+                            self._call_workspace, tc.function.name, args)
+                        content = json.dumps(data)[:4000]
+                    except Exception as e:
+                        content = f"error: {e}"
+                    messages.append({"role": "tool", "tool_call_id": tc.id,
+                                     "content": content})
+        except Exception as e:
+            print("[glance-debug] workspace openai error:", e, flush=True)
+            await self._reply_local("I couldn't reach your Google account just now.")
+
+    async def _run_workspace_generic(self, instruction: str):
+        """Workspace via text-based tool calls for Gemini/Ollama/others."""
+        import json as _json
+
+        tool_desc = (
+            "Available tools (reply with JSON to use one):\n"
+            '  {"tool":"gmail_list","query":"is:unread","count":5}\n'
+            '  {"tool":"gmail_send","to":"x@y.com","subject":"Hi","body":"..."}\n'
+            '  {"tool":"calendar_events","count":10,"days":1}\n'
+            '  {"tool":"done","summary":"your spoken summary here"}\n'
+        )
+        system = self._ws_system() + "\n\n" + tool_desc
+        self._emit_state(AppState.THINKING)
+        context = ""
+        try:
+            for _ in range(6):
+                prompt = instruction if _ == 0 else f"Tool result: {context}\nContinue or say done."
+                full = ""
+                async for chunk in self._get_llm().stream_response(
+                    user_text=prompt, screenshots_b64=[], history=[],
+                    system_prompt=system, model=cfg.fast_model(),
+                ):
+                    full += chunk
+
+                text = full.strip()
+                if "```" in text:
+                    text = text.split("```")[1].strip()
+                    if text.startswith("json"):
+                        text = text[4:].strip()
+                try:
+                    action = _json.loads(text)
+                except Exception:
+                    import re as _re
+                    m = _re.search(r'\{[^}]+\}', text)
+                    if m:
+                        try:
+                            action = _json.loads(m.group())
+                        except Exception:
+                            await self._reply_local(text[:200])
+                            return
+                    else:
+                        await self._reply_local(text[:200])
+                        return
+
+                tool = action.pop("tool", "done")
+                if tool == "done":
+                    await self._reply_local(action.get("summary", text[:200]))
+                    return
+                try:
+                    data = await asyncio.to_thread(self._call_workspace, tool, action)
+                    context = _json.dumps(data)[:4000]
+                except Exception as e:
+                    context = f"error: {e}"
+        except Exception as e:
+            print("[glance-debug] workspace generic error:", e, flush=True)
             await self._reply_local("I couldn't reach your Google account just now.")
 
     async def _spawn_background(self, description: str):
@@ -269,9 +380,21 @@ class ActionsMixin:
         await self._bg_report(tid, result)
 
     async def _research_agent(self, description: str) -> str:
-        """Background research via Anthropic's web_search; falls back to a
-        knowledge-only answer if search is unavailable. Returns a short spoken line."""
-        import anthropic
+        """Background research via the active provider. Uses web search when
+        available (Anthropic web_search, OpenAI web_search_preview, or
+        DuckDuckGo fallback). Returns a short spoken line."""
+        provider = cfg.llm_provider()
+
+        if provider == "claude" and cfg.anthropic_api_key:
+            return await self._research_anthropic(description)
+        if provider in ("openai", "copilot") and cfg.openai_api_key:
+            return await self._research_openai(description)
+
+        # Gemini/Ollama/others: web-search via DuckDuckGo, then summarize
+        return await self._research_generic(description)
+
+    async def _research_anthropic(self, description: str) -> str:
+        """Research via Anthropic web_search tool."""
         client = self._get_anthropic()
         system = ("You are a research aide for Glance. Investigate the request (use "
                   "web search when it helps), then answer in a concise, spoken-style "
@@ -283,7 +406,7 @@ class ActionsMixin:
                 messages = [{"role": "user", "content": description}]
                 for _ in range(4):
                     resp = await client.messages.create(
-                        model="claude-sonnet-5", max_tokens=1024,
+                        model=cfg.vision_model(), max_tokens=1024,
                         system=system, tools=tools, messages=messages)
                     if resp.stop_reason == "pause_turn":
                         messages.append({"role": "assistant",
@@ -295,9 +418,72 @@ class ActionsMixin:
                         return text
                     break
             except Exception as e:
-                print(f"[glance-debug] research (search={bool(tools)}) error: {e}",
+                print(f"[glance-debug] research anthropic (search={bool(tools)}) error: {e}",
                       flush=True)
         return "I couldn't dig up a solid answer on that."
+
+    async def _research_openai(self, description: str) -> str:
+        """Research via OpenAI with web_search_preview tool."""
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=cfg.openai_api_key)
+        system = ("You are a research aide. Investigate the request using web search, "
+                  "then answer in a concise, spoken-style summary — 2 to 4 sentences "
+                  "for the ear, lead with the answer, no URLs or markdown.")
+        try:
+            resp = await client.responses.create(
+                model=cfg.vision_model(),
+                tools=[{"type": "web_search_preview"}],
+                input=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": description},
+                ],
+            )
+            text = "".join(item.text for item in resp.output if hasattr(item, "text")).strip()
+            if text:
+                return text
+        except Exception as e:
+            print(f"[glance-debug] research openai error: {e}", flush=True)
+        # Fallback: no search
+        try:
+            resp = await client.chat.completions.create(
+                model=cfg.vision_model(), max_tokens=1024,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": description},
+                ])
+            text = (resp.choices[0].message.content or "").strip()
+            if text:
+                return text
+        except Exception as e:
+            print(f"[glance-debug] research openai fallback error: {e}", flush=True)
+        return "I couldn't dig up a solid answer on that."
+
+    async def _research_generic(self, description: str) -> str:
+        """Research for Gemini/Ollama/others: DuckDuckGo search + LLM summary."""
+        search_results = ""
+        try:
+            from ai.web_search import search
+            search_results = await search(description) or ""
+        except Exception:
+            pass
+
+        system = ("You are a research aide. Answer in a concise, spoken-style "
+                  "summary — 2 to 4 sentences for the ear, lead with the answer, "
+                  "no URLs or markdown.")
+        if search_results:
+            from ai.web_search import build_search_context
+            system += build_search_context(search_results)
+
+        full = ""
+        try:
+            async for chunk in self._get_llm().stream_response(
+                user_text=description, screenshots_b64=[], history=[],
+                system_prompt=system, model=cfg.vision_model(),
+            ):
+                full += chunk
+        except Exception as e:
+            print(f"[glance-debug] research generic error: {e}", flush=True)
+        return full.strip() or "I couldn't dig up a solid answer on that."
 
     async def _bg_report(self, tid: int, result: str):
         """Report back during a lull, so we never talk over an active turn."""
@@ -514,22 +700,329 @@ class ActionsMixin:
             t = "https://" + t
         self._launch_app(t)
 
+    async def _say_task(self, text):
+        """Speak a short closing line during a computer-use task."""
+        text = (text or "").strip()
+        if not text:
+            return
+        ends = list(re.finditer(r"[.!?](?=\s|$)", text))
+        spoken = text
+        if len(ends) >= 2:
+            spoken = text[:ends[1].end()].strip()
+        if len(spoken) > 200 and ends:
+            spoken = text[:ends[0].end()].strip()
+        self.sig_response_chunk.emit(spoken + " ")
+        self._emit_state(AppState.SPEAKING)
+        try:
+            await self._get_tts().speak(spoken)
+        except Exception:
+            slog("ERROR", "closing TTS failed")
+
     async def _run_task(self, instruction: str):
-        """Phase 2: the general computer-use agent. Loops screenshot → Claude picks
-        an action → we run it on the real machine → fresh screenshot → repeat, until
-        the task is done. This is 'proper computer use' — it can open apps and drive
-        them. Safety is prompt-level (won't send/delete/buy/post unless the task
-        requires it, and stops to ask first) plus a step cap and Esc-to-stop.
-        HIGH RISK + untested end-to-end — try safe tasks first (open Notepad, type)."""
+        """The general computer-use agent. Loops screenshot → model picks an
+        action → we run it on the real machine → fresh screenshot → repeat, until
+        the task is done. Dispatches to the active provider's computer-use API:
+          • Claude → Anthropic Computer Use API
+          • OpenAI → Responses API with computer_use_preview
+          • Others → text-based tool-call fallback
+        Safety: prompt-level + step cap + Esc-to-stop."""
+        provider = cfg.llm_provider()
+        if provider == "claude" and cfg.anthropic_api_key:
+            await self._run_task_anthropic(instruction)
+        elif provider == "openai" and cfg.openai_api_key:
+            await self._run_task_openai(instruction)
+        else:
+            await self._run_task_generic(instruction)
+
+    async def _run_task_generic(self, instruction: str):
+        """Fallback computer-use via text-based tool calls for any provider."""
+        import base64
+        import json as _json
+        from ai.element_locator import _pick_resolution, _resize_jpeg
+
+        try:
+            actuator = self._get_actuator()
+        except Exception as e:
+            self.sig_error.emit(str(e))
+            await self._reply_local("I can't drive the mouse and keyboard right now.")
+            return
+        shots = capture_all_screens()
+        if not shots:
+            await self._reply_local("I can't see your screen right now.")
+            return
+        tw, th = _pick_resolution(shots[0].width, shots[0].height)
+
+        def grab():
+            s = capture_all_screens()
+            if not s:
+                return None, None
+            shot = s[0]
+            b64 = base64.b64encode(
+                _resize_jpeg(base64.b64decode(shot.base64_jpeg), tw, th)).decode("ascii")
+            return shot, b64
+
+        def to_coords(shot, cx, cy):
+            cx = max(0.0, min(float(cx), tw)); cy = max(0.0, min(float(cy), th))
+            pw = shot.physical_width or shot.width
+            ph = shot.physical_height or shot.height
+            vx = cx / tw * pw + shot.physical_left
+            vy = cy / th * ph + shot.physical_top
+            scale = shot.dpi_scale if shot.dpi_scale > 0 else 1.0
+            return int(round(vx / scale)), int(round(vy / scale)), int(round(vx)), int(round(vy))
+
+        system = (
+            "You are Glance, doing a task on the user's screen. You can see a "
+            "screenshot. Reply with a JSON action to perform. Available actions:\n"
+            '  {"action":"click","x":123,"y":456,"text":"clicking Save"}\n'
+            '  {"action":"double_click","x":123,"y":456,"text":"opening file"}\n'
+            '  {"action":"right_click","x":123,"y":456,"text":"context menu"}\n'
+            '  {"action":"type","content":"hello world","text":"typing greeting"}\n'
+            '  {"action":"key","content":"ctrl+s","text":"saving"}\n'
+            '  {"action":"scroll","x":123,"y":456,"direction":"down","text":"scrolling"}\n'
+            '  {"action":"launch_app","name":"notepad","text":"opening notepad"}\n'
+            '  {"action":"open_url","target":"gmail","text":"opening email"}\n'
+            '  {"action":"done","text":"All done — enjoy!"}\n\n'
+            f"Screen resolution: {tw}x{th}. Coordinates are pixels from top-left.\n"
+            "Work ONE action at a time. After each, you'll get a fresh screenshot.\n"
+            "When finished, use the 'done' action with a short spoken summary.\n"
+            "SAFETY: do NOT send, delete, buy, or post unless the task asks for it."
+        )
+        mem, sk = self._memory.facts_block(), self._memory.skills_block()
+        if mem or sk:
+            system += "\n\n" + "\n\n".join(x for x in (mem, sk) if x)
+
+        shot, b64 = grab()
+        self._cancel_flag = False
+        self._emit_state(AppState.THINKING)
+        MAX_STEPS = 12
+        try:
+            for _ in range(MAX_STEPS):
+                if self._cancel_flag:
+                    await self._say_task("Okay, stopping.")
+                    break
+                full = ""
+                async for chunk in self._get_llm().stream_response(
+                    user_text=instruction if _ == 0 else "Here's the updated screenshot. Continue the task or say done.",
+                    screenshots_b64=[b64] if b64 else [],
+                    history=[],
+                    system_prompt=system,
+                    model=cfg.vision_model(),
+                ):
+                    full += chunk
+                # Parse JSON action from response
+                text = full.strip()
+                if "```" in text:
+                    text = text.split("```")[1].strip()
+                    if text.startswith("json"):
+                        text = text[4:].strip()
+                try:
+                    action = _json.loads(text)
+                except Exception:
+                    # Try to find JSON in the response
+                    import re as _re
+                    m = _re.search(r'\{[^}]+\}', text)
+                    if m:
+                        try:
+                            action = _json.loads(m.group())
+                        except Exception:
+                            await self._say_task(text[:200])
+                            break
+                    else:
+                        await self._say_task(text[:200])
+                        break
+
+                act = (action.get("action") or "").lower()
+                label = action.get("text", "")
+
+                if act == "done":
+                    await self._say_task(label or "Done.")
+                    break
+                elif act == "launch_app":
+                    self._launch_app(action.get("name", ""))
+                elif act == "open_url":
+                    self._open_url(action.get("target", ""))
+                elif act in ("click", "left_click"):
+                    x, y = int(action.get("x", 0)), int(action.get("y", 0))
+                    lx, ly, px, py = to_coords(shot, x, y)
+                    self.sig_point_at.emit(float(lx), float(ly), label)
+                    self._exec_action(actuator, "left_click", px, py, "")
+                elif act == "double_click":
+                    x, y = int(action.get("x", 0)), int(action.get("y", 0))
+                    lx, ly, px, py = to_coords(shot, x, y)
+                    self.sig_point_at.emit(float(lx), float(ly), label)
+                    self._exec_action(actuator, "double_click", px, py, "")
+                elif act == "right_click":
+                    x, y = int(action.get("x", 0)), int(action.get("y", 0))
+                    lx, ly, px, py = to_coords(shot, x, y)
+                    self.sig_point_at.emit(float(lx), float(ly), label)
+                    self._exec_action(actuator, "right_click", px, py, "")
+                elif act == "type":
+                    self._exec_action(actuator, "type", None, None, action.get("content", ""))
+                elif act == "key":
+                    self._exec_action(actuator, "key", None, None, action.get("content", ""))
+                elif act == "scroll":
+                    x, y = int(action.get("x", 0)), int(action.get("y", 0))
+                    _, _, px, py = to_coords(shot, x, y)
+                    self._exec_action(actuator, "scroll", px, py, "")
+                else:
+                    await self._say_task(label or full[:100])
+                    break
+
+                opened_url = act == "open_url"
+                await asyncio.sleep(1.8 if opened_url else 0.8)
+                shot, b64 = grab()
+                if shot is None:
+                    break
+        except Exception as e:
+            import traceback
+            print("[glance-debug] generic task error:", flush=True)
+            traceback.print_exc()
+            self.sig_error.emit(str(e))
+        finally:
+            self.sig_point_release.emit()
+
+    async def _run_task_openai(self, instruction: str):
+        """Computer-use agent via OpenAI's Responses API (computer_use_preview)."""
+        import base64
+        from openai import AsyncOpenAI
+        from ai.element_locator import _pick_resolution, _resize_jpeg
+
+        try:
+            actuator = self._get_actuator()
+        except Exception as e:
+            self.sig_error.emit(str(e))
+            await self._reply_local("I can't drive the mouse and keyboard right now.")
+            return
+        shots = capture_all_screens()
+        if not shots:
+            await self._reply_local("I can't see your screen right now.")
+            return
+        tw, th = _pick_resolution(shots[0].width, shots[0].height)
+
+        def grab():
+            s = capture_all_screens()
+            if not s:
+                return None, None
+            shot = s[0]
+            b64 = base64.b64encode(
+                _resize_jpeg(base64.b64decode(shot.base64_jpeg), tw, th)).decode("ascii")
+            return shot, b64
+
+        def to_coords(shot, cx, cy):
+            cx = max(0.0, min(float(cx), tw)); cy = max(0.0, min(float(cy), th))
+            pw = shot.physical_width or shot.width
+            ph = shot.physical_height or shot.height
+            vx = cx / tw * pw + shot.physical_left
+            vy = cy / th * ph + shot.physical_top
+            scale = shot.dpi_scale if shot.dpi_scale > 0 else 1.0
+            return int(round(vx / scale)), int(round(vy / scale)), int(round(vx)), int(round(vy))
+
+        system = (
+            "You are Glance, doing a task on the user's screen with the "
+            "computer tool. Work ONE action at a time. To open an app, use the "
+            "launch_app function. For websites, use open_url. "
+            "THE MOMENT the goal is achieved, STOP. "
+            "Speak ONLY when finished: ONE short sentence about the outcome. "
+            "SAFETY: do NOT send, delete, buy, or post unless the task asks for it."
+        )
+        mem, sk = self._memory.facts_block(), self._memory.skills_block()
+        if mem or sk:
+            system += "\n\n" + "\n\n".join(x for x in (mem, sk) if x)
+
+        client = AsyncOpenAI(api_key=cfg.openai_api_key)
+        tools = [
+            {"type": "computer_use_preview", "display_width": tw, "display_height": th,
+             "environment": "browser"},
+            {"type": "function", "name": "launch_app",
+             "description": "Open an app by name (e.g. 'notepad', 'chrome').",
+             "parameters": {"type": "object", "properties": {"name": {"type": "string"}},
+                           "required": ["name"]}},
+            {"type": "function", "name": "open_url",
+             "description": "Open a URL or web app (e.g. 'gmail', 'youtube', or a full URL).",
+             "parameters": {"type": "object", "properties": {"target": {"type": "string"}},
+                           "required": ["target"]}},
+        ]
+        shot, b64 = grab()
+        input_msgs = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": [
+                {"type": "input_image", "image_url": f"data:image/jpeg;base64,{b64}"},
+                {"type": "input_text", "text": instruction},
+            ]},
+        ]
+
+        self._cancel_flag = False
+        self._emit_state(AppState.THINKING)
+        MAX_STEPS = 12
+        try:
+            for _ in range(MAX_STEPS):
+                if self._cancel_flag:
+                    await self._say_task("Okay, stopping.")
+                    break
+                resp = await client.responses.create(
+                    model=cfg.vision_model(),
+                    tools=tools,
+                    input=input_msgs,
+                    truncation="auto",
+                )
+                # Process the response output items
+                has_tool_call = False
+                text_output = ""
+                for item in resp.output:
+                    if item.type == "text":
+                        text_output += item.text
+                    elif item.type == "computer_call":
+                        has_tool_call = True
+                        action = item.action
+                        coord = getattr(action, "coordinate", None) or getattr(action, "x", None)
+                        if hasattr(action, "type"):
+                            act_type = action.type
+                            px = py = None
+                            if coord and hasattr(action, "x") and hasattr(action, "y"):
+                                lx, ly, px, py = to_coords(shot, action.x, action.y)
+                                self.sig_point_at.emit(float(lx), float(ly),
+                                                       act_type[:20])
+                            text = getattr(action, "text", "") or ""
+                            self._exec_action(actuator, act_type, px, py, text)
+                    elif item.type == "function_call":
+                        has_tool_call = True
+                        import json as _json
+                        args = _json.loads(item.arguments) if isinstance(item.arguments, str) else item.arguments
+                        if item.name == "launch_app":
+                            self._launch_app(args.get("name", ""))
+                        elif item.name == "open_url":
+                            self._open_url(args.get("target", ""))
+
+                if not has_tool_call:
+                    await self._say_task(text_output or "Done.")
+                    break
+
+                await asyncio.sleep(0.8)
+                shot, b64 = grab()
+                if shot is None:
+                    break
+                # Feed the screenshot back as the next input
+                input_msgs = resp.output + [
+                    {"type": "computer_call_output",
+                     "call_id": next((i.call_id for i in resp.output if i.type == "computer_call"), ""),
+                     "output": {"type": "input_image", "image_url": f"data:image/jpeg;base64,{b64}"}},
+                ]
+        except Exception as e:
+            import traceback
+            print("[glance-debug] openai task error:", flush=True)
+            traceback.print_exc()
+            self.sig_error.emit(str(e))
+        finally:
+            self.sig_point_release.emit()
+
+    async def _run_task_anthropic(self, instruction: str):
+        """Computer-use agent via Anthropic's Computer Use API (original path)."""
         import base64
         import httpx
         from ai.element_locator import (_pick_resolution, _resize_jpeg,
                                          _API_URL, _BETA_HEADER)
 
         api_key = cfg.anthropic_api_key
-        if not api_key:
-            await self._reply_local("I need an Anthropic key for that.")
-            return
         try:
             actuator = self._get_actuator()
         except Exception as e:
@@ -561,26 +1054,7 @@ class ActionsMixin:
             return int(round(vx / scale)), int(round(vy / scale)), int(round(vx)), int(round(vy))
 
         async def say(text):
-            text = (text or "").strip()
-            if not text:
-                return
-            # Cap the spoken closing at WHOLE-SENTENCE boundaries only (max two
-            # sentences; drop to one if those run long) — never chop mid-sentence.
-            # Panel text = spoken text, so what you read is what she says.
-            ends = list(re.finditer(r"[.!?](?=\s|$)", text))
-            spoken = text
-            if len(ends) >= 2:
-                spoken = text[:ends[1].end()].strip()
-            if len(spoken) > 200 and ends:
-                spoken = text[:ends[0].end()].strip()
-            if spoken != text:
-                slog("SAY", f"closing capped {len(text)}->{len(spoken)} chars")
-            self.sig_response_chunk.emit(spoken + " ")
-            self._emit_state(AppState.SPEAKING)
-            try:
-                await self._get_tts().speak(spoken)
-            except Exception:
-                slog("ERROR", "closing TTS failed")
+            await self._say_task(text)
 
         system = (
             "You are Glance, doing a task on the user's Windows screen with the "
@@ -653,7 +1127,7 @@ class ActionsMixin:
                     if self._cancel_flag:
                         await say("Okay, stopping.")
                         break
-                    body = {"model": "claude-sonnet-5", "max_tokens": 1024,
+                    body = {"model": cfg.vision_model(), "max_tokens": 1024,
                             "system": system, "tools": tools, "messages": messages}
                     r = await http.post(_API_URL, json=body, headers=headers)
                     if r.status_code >= 400:

@@ -391,7 +391,15 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
             # Warm the SHARED pool (the one real calls reuse), not a throwaway
             # client — so the first turn's TLS handshake is already paid.
             http = self._get_http()
-            for url in ("https://api.anthropic.com/", "https://api.deepgram.com/"):
+            warm_urls = ["https://api.deepgram.com/"]
+            provider = cfg.llm_provider()
+            if provider == "claude":
+                warm_urls.append("https://api.anthropic.com/")
+            elif provider in ("openai", "copilot"):
+                warm_urls.append("https://api.openai.com/")
+            elif provider == "gemini":
+                warm_urls.append("https://generativelanguage.googleapis.com/")
+            for url in warm_urls:
                 try:
                     await http.get(url, timeout=4)
                 except Exception:
@@ -399,10 +407,10 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
         except Exception:
             pass
         try:
-            if cfg.anthropic_api_key:
+            if cfg.anthropic_api_key and cfg.llm_provider() == "claude":
                 # Tiny call to warm the SDK client's connection too (the router).
                 await self._get_anthropic().messages.create(
-                    model="claude-haiku-4-5-20251001", max_tokens=1,
+                    model=cfg.fast_model(), max_tokens=1,
                     messages=[{"role": "user", "content": "hi"}])
         except Exception:
             pass
@@ -818,67 +826,66 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
             # way). One fast Haiku call picks the lane: a hands-on task (the
             # computer-use agent), a spoken screen walkthrough, or plain chat. This
             # is what kills the brittle "typed vs type" keyword matching.
-            if cfg.anthropic_api_key:
-                # Instant local fast-path for the obvious cases; Haiku router only
-                # when it's genuinely ambiguous (hides the routing hop most turns).
-                fast = self._fast_route(transcript)
-                decision = {"route": fast} if fast else await self._route(transcript)
-                route = decision.get("route", "chat")
-                slog("ROUTE", f"-> {route}" + ("  (instant, forced)" if fast else "  (haiku)"))
-                # Instant audible ack on the SLOW routes — the real response takes
-                # seconds; a sub-second "On it!" makes the turn feel immediate.
-                if route in ("act", "walkthrough", "organize") and getattr(self, "_acks", None):
-                    import random as _random
-                    from audio.playback import play_mp3_async
-                    slog("TTS", "instant ack")
-                    asyncio.create_task(play_mp3_async(_random.choice(self._acks)))
-                if route == "act":
-                    await self._run_task(transcript)
-                    # Act-then-teach: "open X and explain it / walk me through it"
-                    # chains the pointing tour onto whatever the task just opened —
-                    # the do-AND-teach combo no legacy assistant has.
-                    if not self._cancel_flag and re.search(
-                            r"\b(and|then)\s+(explain|walk me through|"
-                            r"show me around|teach me|tell me what)", transcript, re.I):
-                        slog("ROUTE", "chaining tour after act (and-explain)")
-                        await self._run_narration(
-                            "Give me a quick tour of what's on screen now.")
-                    return
-                if route == "organize":
-                    await self._run_organize_voice(transcript)
-                    return
-                if route == "undo":
-                    await self._run_undo_voice()   # any phrasing: "revert that" etc.
-                    return
-                if route == "workspace":
-                    await self._run_workspace(transcript)
-                    return
-                if route == "background":
-                    await self._spawn_background(transcript)
-                    return
-                if route == "walkthrough":
-                    await self._run_narration(transcript)
-                    return
-                if route == "remember":
-                    ok = self._memory.add_fact(decision.get("fact") or transcript)
-                    await self._reply_local("Got it — I'll remember that."
-                                            if ok else "I already had that noted.")
-                    return
-                if route == "forget":
-                    n = self._memory.forget(decision.get("fact", ""))
-                    await self._reply_local("Okay, forgotten." if n
-                                            else "I didn't have that saved.")
-                    return
-                if route == "learn_skill":
-                    name = (decision.get("skill_name") or "").strip()
-                    steps = (decision.get("skill_steps") or "").strip()
-                    if self._memory.add_skill(name, steps):
-                        await self._reply_local(f"Learned it — I'll remember your {name}.")
-                    else:
-                        await self._reply_local(
-                            "Tell me the steps and I'll save it as a routine.")
-                    return
-                # route == "chat" → fall through to the one-shot answer below.
+            # Route through the active provider (Anthropic/OpenAI structured routing,
+            # or text-based generic routing for Gemini/Ollama).
+            fast = self._fast_route(transcript)
+            decision = {"route": fast} if fast else await self._route(transcript)
+            route = decision.get("route", "chat")
+            slog("ROUTE", f"-> {route}" + ("  (instant, forced)" if fast else f"  ({cfg.llm_provider()})"))
+            # Instant audible ack on the SLOW routes — the real response takes
+            # seconds; a sub-second "On it!" makes the turn feel immediate.
+            if route in ("act", "walkthrough", "organize") and getattr(self, "_acks", None):
+                import random as _random
+                from audio.playback import play_mp3_async
+                slog("TTS", "instant ack")
+                asyncio.create_task(play_mp3_async(_random.choice(self._acks)))
+            if route == "act":
+                await self._run_task(transcript)
+                # Act-then-teach: "open X and explain it / walk me through it"
+                # chains the pointing tour onto whatever the task just opened —
+                # the do-AND-teach combo no legacy assistant has.
+                if not self._cancel_flag and re.search(
+                        r"\b(and|then)\s+(explain|walk me through|"
+                        r"show me around|teach me|tell me what)", transcript, re.I):
+                    slog("ROUTE", "chaining tour after act (and-explain)")
+                    await self._run_narration(
+                        "Give me a quick tour of what's on screen now.")
+                return
+            if route == "organize":
+                await self._run_organize_voice(transcript)
+                return
+            if route == "undo":
+                await self._run_undo_voice()   # any phrasing: "revert that" etc.
+                return
+            if route == "workspace":
+                await self._run_workspace(transcript)
+                return
+            if route == "background":
+                await self._spawn_background(transcript)
+                return
+            if route == "walkthrough":
+                await self._run_narration(transcript)
+                return
+            if route == "remember":
+                ok = self._memory.add_fact(decision.get("fact") or transcript)
+                await self._reply_local("Got it — I'll remember that."
+                                        if ok else "I already had that noted.")
+                return
+            if route == "forget":
+                n = self._memory.forget(decision.get("fact", ""))
+                await self._reply_local("Okay, forgotten." if n
+                                        else "I didn't have that saved.")
+                return
+            if route == "learn_skill":
+                name = (decision.get("skill_name") or "").strip()
+                steps = (decision.get("skill_steps") or "").strip()
+                if self._memory.add_skill(name, steps):
+                    await self._reply_local(f"Learned it — I'll remember your {name}.")
+                else:
+                    await self._reply_local(
+                        "Tell me the steps and I'll save it as a routine.")
+                return
+            # route == "chat" → fall through to the one-shot answer below.
 
             # 2. Screen capture — skipped if sensitive window (password manager etc.)
             #
@@ -945,7 +952,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
                     async def _ready(t=target):
                         return t
                     locate_task = asyncio.create_task(_ready())
-                elif cfg.anthropic_api_key:
+                elif cfg.llm_provider() == "claude" and cfg.anthropic_api_key:
                     # Path A — Anthropic Computer Use (best accuracy)
                     from ai.element_locator import detect_element
                     locate_task = asyncio.create_task(detect_element(

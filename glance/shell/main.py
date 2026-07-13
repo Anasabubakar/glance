@@ -184,12 +184,9 @@ def main():
 
     # Journal folder
     def _open_journal():
-        import os, subprocess, sys as _sys
-        if _sys.platform == "win32":
-            base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-        else:
-            base = os.path.expanduser("~/.local/share")
-        path = os.path.join(base, "Glance")
+        import subprocess, sys as _sys
+        from config import _USER_DIR
+        path = str(_USER_DIR)
         try:
             if _sys.platform == "win32":
                 os.startfile(path)
@@ -224,6 +221,14 @@ def main():
         tray.show_notification("Glance", f"Switched to {name}")
 
     tray.on_switch_provider.connect(_switch)
+
+    def _select_model(model_id: str):
+        cfg.set_active_model(model_id)
+        manager.set_model(model_id)
+        tray.rebuild_menu()
+        tray.show_notification("Glance", f"Model: {model_id}")
+
+    tray.on_select_model.connect(_select_model)
     tray.on_stop.connect(manager.stop)
     tray.on_copilot_login.connect(lambda: _copilot_login_flow(tray, panel, manager))
     tray.on_copilot_refresh.connect(manager.refresh_copilot_models)
@@ -275,8 +280,8 @@ def main():
     def _save_diagnostics():
         import datetime, json, platform, traceback
         from ai import ollama_bootstrap as ob
-        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-        out = Path(base) / "Glance" / f"diagnostics-{datetime.datetime.now():%Y%m%d-%H%M%S}.txt"
+        from config import _USER_DIR
+        out = _USER_DIR / f"diagnostics-{datetime.datetime.now():%Y%m%d-%H%M%S}.txt"
         try:
             providers_d = cfg.describe()
         except Exception:

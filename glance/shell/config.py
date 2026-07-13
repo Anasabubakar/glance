@@ -11,7 +11,10 @@ from dotenv import load_dotenv
 # .exe work. We always ALSO read the user dir so both layouts behave the same.
 _HERE = Path(__file__).parent
 _FROZEN = bool(getattr(sys, "frozen", False))
-_USER_DIR = Path(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")) / "Glance"
+if sys.platform == "win32":
+    _USER_DIR = Path(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")) / "Glance"
+else:
+    _USER_DIR = Path(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")) / "Glance"
 _USER_ENV = _USER_DIR / ".env"
 # Where runtime changes (provider switch, wizard-saved keys) are written.
 _WRITABLE_ENV = _USER_ENV if _FROZEN else (_HERE / ".env")
@@ -101,20 +104,31 @@ class Config:
         """Runtime switch — next query uses this provider. Persisted to .env."""
         name = name.lower()
         os.environ["GLANCE_ACTIVE_LLM"] = name
+        # Clear model override when switching providers — the new provider's
+        # default is better than carrying a stale model id across providers.
+        os.environ.pop("GLANCE_ACTIVE_MODEL", None)
         # Write to .env so the choice survives restarts (user dir when frozen).
+        self._persist_env("GLANCE_ACTIVE_LLM", name)
+
+    def set_active_model(self, model_id: str) -> None:
+        """Runtime switch — next query uses this specific model. Persisted to .env."""
+        os.environ["GLANCE_ACTIVE_MODEL"] = model_id
+        self._persist_env("GLANCE_ACTIVE_MODEL", model_id)
+
+    def _persist_env(self, key: str, value: str) -> None:
+        """Write a key=value pair to the writable .env file."""
         env_path = _WRITABLE_ENV
         try:
             env_path.parent.mkdir(parents=True, exist_ok=True)
             lines = env_path.read_text(encoding="utf-8").splitlines(keepends=True) if env_path.exists() else []
-            key = "GLANCE_ACTIVE_LLM"
             found = False
             for i, line in enumerate(lines):
                 if line.startswith(key + "=") or line.startswith(key + " ="):
-                    lines[i] = f"{key}={name}\n"
+                    lines[i] = f"{key}={value}\n"
                     found = True
                     break
             if not found:
-                lines.append(f"\n{key}={name}\n")
+                lines.append(f"\n{key}={value}\n")
             env_path.write_text("".join(lines), encoding="utf-8")
         except Exception:
             pass  # non-fatal — runtime switch still works via os.environ
@@ -181,6 +195,10 @@ class Config:
             return "tavily"
         return "duckduckgo"
 
+    def active_model(self) -> str | None:
+        """Return the user-selected model override, or None for provider default."""
+        return os.environ.get("GLANCE_ACTIVE_MODEL", "").strip() or None
+
     def fast_model(self) -> str:
         """A cheap/fast model for routing and classification, per active provider."""
         p = self.llm_provider()
@@ -195,7 +213,12 @@ class Config:
         return os.environ.get("GLANCE_FAST_MODEL", "llama3.2:3b")
 
     def vision_model(self) -> str:
-        """A vision-capable model for tours, locating, and computer use."""
+        """A vision-capable model for tours, locating, and computer use.
+        Respects GLANCE_ACTIVE_MODEL if set by the user."""
+        # User-selected model takes precedence
+        active = self.active_model()
+        if active:
+            return active
         p = self.llm_provider()
         if p == "claude":
             return os.environ.get("GLANCE_VISION_MODEL", "claude-sonnet-5")
@@ -211,6 +234,7 @@ class Config:
         """Human-readable summary of active providers for the setup panel."""
         return {
             "llm": self.llm_provider(),
+            "model": self.vision_model(),
             "stt": self.stt_provider(),
             "tts": self.tts_provider(),
             "search": self.search_provider(),

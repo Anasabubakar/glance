@@ -42,3 +42,8 @@ def active_provider() -> str:
     if os.environ.get("GOOGLE_API_KEY"):
         return "gemini"
     return "ollama"
+
+
+def active_model() -> str | None:
+    """Return the user-selected model override, or None for provider default."""
+    return os.environ.get("GLANCE_ACTIVE_MODEL", "").strip() or None

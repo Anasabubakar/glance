@@ -102,11 +102,16 @@ class RoutingMixin:
         return None
 
     async def _route(self, transcript: str) -> dict:
-        """Decide the route: structured Anthropic routing when available,
-        generic text classification through the active LLM otherwise.
+        """Decide the route: structured tool-use routing when available (Anthropic
+        or OpenAI), generic text classification through the active LLM otherwise.
         Falls back to {'route': 'chat'}."""
-        if cfg.anthropic_api_key:
+        provider = cfg.llm_provider()
+        if provider == "claude" and cfg.anthropic_api_key:
             result = await self._route_anthropic(transcript)
+            if result is not None:
+                return result
+        elif provider in ("openai", "copilot") and cfg.openai_api_key:
+            result = await self._route_openai(transcript)
             if result is not None:
                 return result
         try:
@@ -187,6 +192,56 @@ class RoutingMixin:
         except Exception as e:
             print("[glance-debug] anthropic route error:", e, flush=True)
             self._reset_clients()
+        return None
+
+    async def _route_openai(self, transcript: str) -> dict | None:
+        """Structured routing via OpenAI function calling."""
+        try:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=cfg.openai_api_key)
+            route_enum = ["act", "walkthrough", "remember", "forget",
+                          "learn_skill", "background", "organize", "undo", "chat"]
+            workspace_on = False
+            try:
+                import google_workspace as _gw
+                workspace_on = _gw.is_configured()
+            except Exception:
+                pass
+            if workspace_on:
+                route_enum.insert(0, "workspace")
+
+            sys_prompt = (
+                "Route requests for Glance, a voice assistant that can "
+                "see the screen, talk, point, control the computer, and remember "
+                "things across sessions. Pick ONE route by calling the route function.")
+
+            tools = [{"type": "function", "function": {
+                "name": "route",
+                "description": "Choose the route for this request.",
+                "parameters": {"type": "object", "properties": {
+                    "route": {"type": "string", "enum": route_enum},
+                    "fact": {"type": "string"},
+                    "skill_name": {"type": "string"},
+                    "skill_steps": {"type": "string"}},
+                    "required": ["route"]},
+            }}]
+
+            resp = await client.chat.completions.create(
+                model=cfg.fast_model(), max_tokens=256,
+                messages=[
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": transcript},
+                ],
+                tools=tools,
+                tool_choice={"type": "function", "function": {"name": "route"}},
+            )
+            choice = resp.choices[0]
+            if choice.message.tool_calls:
+                import json as _json
+                args = _json.loads(choice.message.tool_calls[0].function.arguments)
+                return args or {"route": "chat"}
+        except Exception as e:
+            print("[glance-debug] openai route error:", e, flush=True)
         return None
 
     async def _route_generic(self, transcript: str) -> dict:

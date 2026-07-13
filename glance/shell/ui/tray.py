@@ -31,6 +31,7 @@ class TrayManager(QObject):
     on_toggle_quiz_mode   = pyqtSignal(bool)
     on_toggle_privacy     = pyqtSignal(bool)
     on_switch_provider    = pyqtSignal(str)     # "claude" | "openai" | "copilot" | ...
+    on_select_model       = pyqtSignal(str)     # model id (e.g. "gpt-4o", "claude-sonnet-5")
     on_copilot_login      = pyqtSignal()
     on_copilot_refresh    = pyqtSignal()
     on_ollama_set_model   = pyqtSignal(str, str)   # (kind, name): kind = "vision" | "text"
@@ -116,8 +117,8 @@ class TrayManager(QObject):
 
         menu.addSeparator()
 
-        # Model switcher submenu
-        switch_menu = menu.addMenu(f"Model: {providers['llm']}")
+        # Model switcher submenu — provider picker + per-provider model list
+        switch_menu = menu.addMenu(f"Provider: {providers['llm']}")
         active = providers['llm']
         for name in cfg.available_llm_providers():
             label = f"● {name}" if name == active else f"  {name}"
@@ -128,6 +129,9 @@ class TrayManager(QObject):
         login_act.triggered.connect(self.on_copilot_login)
         refresh_act = switch_menu.addAction("Refresh Copilot models")
         refresh_act.triggered.connect(self.on_copilot_refresh)
+
+        # Per-provider model picker (Claude/OpenAI/Gemini — live from model_registry)
+        self._build_model_picker(menu, providers)
 
         # ── Ollama-specific submenu (always visible — Ollama is the offline fallback) ──
         self._build_ollama_submenu(menu, providers)
@@ -266,6 +270,37 @@ class TrayManager(QObject):
         self._tray.setContextMenu(menu)
         # Keep refs to prevent GC
         self._menu = menu
+
+    def _build_model_picker(self, parent_menu: QMenu, providers: dict):
+        """Per-provider model picker for Claude/OpenAI/Gemini.
+        Shows cached models from model_registry; the user picks one and it
+        becomes the active model for that session."""
+        active_provider = providers.get("llm", "ollama")
+        if active_provider not in ("claude", "openai", "gemini"):
+            return  # Ollama has its own submenu; Copilot has its own picker
+        try:
+            from ai.model_registry import cached_models
+        except ImportError:
+            return
+        models = cached_models(active_provider)
+        if not models:
+            return
+        # Figure out the currently active model (from cfg or env)
+        import os
+        current = os.environ.get("GLANCE_ACTIVE_MODEL", "").strip()
+        if not current:
+            current = cfg.vision_model()
+
+        model_menu = parent_menu.addMenu(f"Model: {current or '(auto)'}")
+        for m in models[:20]:  # cap at 20 to keep the menu reasonable
+            mid = m.get("id", "")
+            mlabel = m.get("label", mid)
+            vis = " 👁" if m.get("vision") else ""
+            prefix = "● " if mid == current else "  "
+            act = model_menu.addAction(f"{prefix}{mlabel}{vis}")
+            act.triggered.connect(
+                lambda _=False, model_id=mid: self.on_select_model.emit(model_id)
+            )
 
     def _build_ollama_submenu(self, parent_menu: QMenu, providers: dict):
         """Vision/Text model pickers + 'Pull recommended' for Ollama."""
