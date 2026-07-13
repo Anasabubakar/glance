@@ -143,6 +143,7 @@ APPRUN
     fi
 
     ARCH=x86_64 "$TOOL" --no-appstream "$APPDIR" "dist/Glance-${VERSION}-x86_64.AppImage"
+    rm -f "$TOOL"
     echo "  AppImage: dist/Glance-${VERSION}-x86_64.AppImage"
 }
 

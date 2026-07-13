@@ -5,191 +5,166 @@
 <h1 align="center">Glance</h1>
 
 <p align="center">
-  <strong>Open-source AI desktop companion — sees your screen, points at things, and acts on them.</strong>
+  Open-source AI desktop companion that sees your screen, points at things, and acts on them.
 </p>
 
 <p align="center">
-  <a href="#install">Install</a> •
-  <a href="#how-it-works">How it works</a> •
-  <a href="#providers">Providers</a> •
-  <a href="#building-from-source">Build from source</a> •
-  <a href="#roadmap">Roadmap</a>
+  <a href="https://github.com/Anasabubakar/glance/releases/latest"><strong>Download</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quickstart">Quickstart</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#providers">Providers</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#building-from-source">Build from source</a>
+</p>
+
+<br>
+
+<p align="center">
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.1.0/Setup-Glance.exe">Windows Installer</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.1.0/glance_0.1.0_amd64.deb">.deb (Ubuntu/Debian)</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.1.0/Glance-0.1.0-x86_64.AppImage">AppImage (any Linux)</a>
 </p>
 
 ---
 
-Glance is a voice-first AI desktop companion for **Windows** and **Linux**. Hold a hotkey, talk, and she:
+Hold a hotkey, talk to your computer, let go. Glance captures your screen, listens to what you said, and responds with voice and a pointing cursor that flies to exactly what you asked about.
 
-- **Sees** your screen and answers questions about it
-- **Points** — a cursor buddy flies to the thing you asked about (pixel-accurate, snaps to real UI elements)
-- **Acts** — opens apps, clicks, types, runs multi-step tasks via Claude Computer Use
-- **Remembers** you across sessions and learns routines you teach by voice
-- **Tours** an app — *"explain my screen"* gives a spoken, pointing walkthrough
+It works with **Claude**, **OpenAI**, **Gemini**, **GitHub Copilot**, or fully offline with **Ollama** -- no API keys required for local mode. Switch between providers from the tray menu at runtime.
 
-Works with **Claude**, **OpenAI**, **Gemini**, **GitHub Copilot**, or fully offline with **Ollama** (no API keys needed).
-
-> **Early build.** The core loop — talk, see, point, act — works. Speech recognition isn't perfect, and the more advanced features (multi-step tasks, background research) are lightly tested. Feedback and PRs welcome.
+> This is v0.1.0. The core loop -- talk, see, point, act -- works well. Some advanced features are lightly tested. Feedback and pull requests are welcome.
 
 ---
 
-## Install
+## Quickstart
 
-### Windows 10/11
+### Windows
 
-**Option A — Installer (recommended, no Python needed)**
+1. Download [**Setup-Glance.exe**](https://github.com/Anasabubakar/glance/releases/download/v0.1.0/Setup-Glance.exe)
+2. Run the installer
+3. Launch Glance from the Start menu or desktop shortcut
+4. The setup wizard walks you through provider configuration
+5. Hold **Ctrl+Alt+M**, speak, release
 
-1. Download **`Setup-Glance.exe`** from [Releases](https://github.com/Anasabubakar/glance/releases/latest)
-2. Run the installer — optionally lets you install Ollama for free local AI
-3. Launch Glance from the desktop shortcut or Start menu
-4. The setup wizard walks you through your API keys (or skip for Ollama-only mode)
-5. **Hold `Ctrl+Alt+M`, say *"what's on my screen?"*, and release**
+> The binary is unsigned. Windows SmartScreen may warn on first run -- click "More info", then "Run anyway".
 
-> The exe is unsigned, so SmartScreen may warn on first run — click "More info → Run anyway".
+### Linux
 
-**Option B — Portable zip**
-
-Download `Glance-windows.zip` from Releases, extract anywhere, run `Glance.exe`.
-
----
-
-### Linux (Ubuntu / Debian)
-
-**Option A — .deb package (recommended)**
+**Debian / Ubuntu:**
 
 ```bash
-# Download the latest .deb from Releases
+wget https://github.com/Anasabubakar/glance/releases/download/v0.1.0/glance_0.1.0_amd64.deb
 sudo apt install ./glance_0.1.0_amd64.deb
-
-# Launch
 glance-companion
 ```
 
-The .deb installs desktop integration (app menu entry, icons) and all dependencies.
-
-**Option B — AppImage (any distro)**
+**Any distro (AppImage):**
 
 ```bash
-# Download from Releases
+wget https://github.com/Anasabubakar/glance/releases/download/v0.1.0/Glance-0.1.0-x86_64.AppImage
 chmod +x Glance-0.1.0-x86_64.AppImage
 ./Glance-0.1.0-x86_64.AppImage
 ```
 
-No installation needed — runs on any Linux with FUSE support.
-
----
-
-### Run from source (any platform, Python 3.10+)
+### From source
 
 ```bash
-git clone https://github.com/Anasabubakar/glance.git
-cd glance
+git clone https://github.com/Anasabubakar/glance.git && cd glance
+pip install -e ".[shell,claude,openai,gemini]"
 
-# Install core + companion shell + Claude provider
-pip install -e ".[shell,claude]"
-
-# Linux only — system deps for PyQt6 and audio
+# Linux only -- system libraries for Qt and audio
 sudo apt install libportaudio2 libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev
 
-# Launch the companion
 glance run
 ```
 
 ---
 
-## How it works
+## Features
 
-| What you do | What Glance does |
-|-------------|-----------------|
-| Hold `Ctrl+Alt+M` and speak | Records audio, transcribes with Whisper (local) or Deepgram (cloud) |
-| Release the hotkey | Captures your screen, sends screenshot + transcript to the LLM |
-| Wait ~2 seconds | LLM responds with text + pointing coordinates |
-| Watch | Glance speaks the answer and moves the cursor buddy to the target |
+**Voice interaction** -- Hold Ctrl+Alt+M (configurable), speak naturally, release. Glance transcribes your speech locally with Whisper or via Deepgram, captures your screen, sends both to your chosen LLM, and speaks the response back.
 
-The companion lives in the system tray. Right-click for provider switching, Ollama model management, recording, diagnostics, and settings.
+**Screen-aware pointing** -- The cursor overlay flies to whatever you asked about. It snaps to real UI elements using the accessibility tree (UIA on Windows, AT-SPI2 on Linux), not just pixel coordinates.
 
-### Push-to-talk hotkey
+**Direct action** -- Glance can open applications, click buttons, type text, and run multi-step workflows on your behalf. It asks for confirmation before destructive actions like sending messages or deleting files.
 
-Default: **Ctrl+Alt+M** (configurable via `GLANCE_HOTKEY` in `.env`).
+**Provider switching** -- Right-click the tray icon to switch between Claude, OpenAI, Gemini, Ollama, or GitHub Copilot. Each provider's available models are fetched and listed in a submenu. No restart needed.
 
-Press **Esc** at any time to cancel the current response.
+**Wake word** -- Say "Glance" hands-free to activate without the hotkey.
+
+**Document context** -- Drag and drop a PDF, DOCX, or text file onto the panel. Glance reads it and uses it as context for your next question.
+
+**Lesson recording** -- Record your screen and Glance's responses as a video walkthrough.
+
+**Workflow capture** -- Let Glance watch your clicks and keystrokes, then ask "what did I just do?" to get a summary or replay instructions.
+
+**Setup wizard** -- First launch walks you through provider keys, Ollama installation, and model selection. Detects what you already have installed and skips unnecessary steps.
+
+**File organizer** -- A separate CLI tool that sorts messy folders using AI or heuristics, fully reversible with `glance undo`.
 
 ---
 
 ## Providers
 
-| Provider | API Key? | Best for |
-|----------|----------|----------|
-| **Ollama** | No (free, local) | Privacy, offline use, zero cost |
-| **Claude** | Yes | Best quality (vision + computer use) |
-| **OpenAI** | Yes | GPT-4o vision |
-| **Gemini** | Yes | Google AI Studio (free tier available) |
-| **GitHub Copilot** | Copilot subscription | Free models via your existing seat |
+| Provider | Key required | Notes |
+|----------|-------------|-------|
+| Ollama | No | Free, local, private. Glance auto-detects and installs it for you. |
+| Claude | Yes | Highest quality vision and computer use. |
+| OpenAI | Yes | GPT-4o and later models with vision. |
+| Gemini | Yes | Google AI Studio. Free tier available. |
+| GitHub Copilot | Copilot seat | Uses your existing subscription. Free models included. |
 
-Switch providers at runtime from the tray menu — no restart needed.
+One key is enough. Pick whichever provider you prefer, or use Ollama for a completely free and offline experience.
 
-### Ollama (free, offline)
-
-Glance's setup wizard installs Ollama and pulls a vision model for you. Or manually:
+### Ollama setup
 
 ```bash
-# Install Ollama (https://ollama.com)
 curl -fsSL https://ollama.com/install.sh | sh
-
-# Pull a vision model
 ollama pull llama3.2-vision
-
-# Set in your .env
-GLANCE_ACTIVE_LLM=ollama
 ```
+
+Set `GLANCE_ACTIVE_LLM=ollama` in your `.env`, or select Ollama from the tray menu.
 
 ---
 
 ## Configuration
 
-On first launch, the setup wizard collects your preferences. To configure manually, copy `.env.example`:
+The setup wizard handles configuration on first launch. For manual setup, copy `.env.example` to the appropriate location:
 
-- **From source:** `cp .env.example glance/shell/.env`
-- **Installed (Windows):** edit `%LOCALAPPDATA%\Glance\.env`
-- **Installed (Linux):** edit `~/.local/share/Glance/.env`
+| Context | Path |
+|---------|------|
+| Running from source | `glance/shell/.env` |
+| Windows installer | `%LOCALAPPDATA%\Glance\.env` |
+| Linux .deb / AppImage | `~/.local/share/Glance/.env` |
 
-Key settings:
+Key variables:
 
-```bash
-ANTHROPIC_API_KEY=sk-ant-...      # Claude (primary LLM)
-DEEPGRAM_API_KEY=...              # Fast cloud STT (optional)
-GLANCE_ACTIVE_LLM=claude          # claude | openai | gemini | ollama
-GLANCE_HOTKEY=ctrl+alt+m          # Push-to-talk hotkey
-WHISPER_MODEL=small.en            # Local STT model size
+```
+ANTHROPIC_API_KEY=sk-ant-...        # or OPENAI_API_KEY, or GOOGLE_API_KEY
+DEEPGRAM_API_KEY=...                # optional: faster speech-to-text
+GLANCE_ACTIVE_LLM=claude            # claude | openai | gemini | ollama | copilot
+GLANCE_HOTKEY=ctrl+alt+m            # push-to-talk hotkey
 ```
 
 ---
 
 ## File organizer
 
-Glance also includes a standalone file organizer (no voice, no GUI):
+Standalone CLI for sorting cluttered directories. Works independently from the voice companion.
 
 ```bash
-pip install -e .
-glance organize ~/Desktop --dry-run   # preview (no API key needed with heuristic)
-glance organize ~/Desktop              # do it
-glance undo                            # fully reversible
+glance organize ~/Desktop --dry-run    # preview moves (no API key needed in heuristic mode)
+glance organize ~/Desktop              # execute
+glance undo                            # reverse everything
 ```
 
 ---
 
 ## Platform support
 
-| Feature | Windows | Linux |
-|---------|---------|-------|
-| Voice companion (push-to-talk) | Yes | Yes |
-| Screen capture + vision | Yes | Yes |
-| Pointing overlay (cursor buddy) | Yes | Yes |
-| UI element snapping | UIA tree | AT-SPI2 |
-| Computer Use (click/type/launch) | Yes | Yes |
-| System tray integration | Yes | Yes |
-| .exe / Setup installer | Yes | — |
-| .deb package | — | Yes |
-| AppImage | — | Yes |
+| | Windows | Linux |
+|---|---------|-------|
+| Voice companion | Yes | Yes |
+| Screen capture and vision | Yes | Yes |
+| Cursor pointing overlay | Yes | Yes |
+| UI element snapping | UIA | AT-SPI2 |
+| Click, type, launch apps | Yes | Yes |
+| System tray | Yes | Yes |
+| Installer | .exe | .deb, AppImage |
 
 ---
 
@@ -198,86 +173,67 @@ glance undo                            # fully reversible
 ### Linux
 
 ```bash
-# Install build dependencies
-make install-deps
-
-# Build everything (portable + AppImage + .deb)
-make all-linux
-
-# Or individual targets
-make build-linux    # Portable binary in dist/Glance/
-make appimage       # AppImage
-make deb            # .deb package
+make install-deps       # pip install all extras + PyInstaller
+make all-linux          # portable + AppImage + .deb in dist/
 ```
 
-Requires: Python 3.10+, pip, dpkg-deb (for .deb), FUSE + wget (for AppImage).
+Individual targets: `make build-linux`, `make appimage`, `make deb`.
+
+Requires Python 3.10+, pip, dpkg-deb (for .deb), FUSE and wget (for AppImage).
 
 ### Windows
 
 ```powershell
-# From repo root
-build.bat              # Portable build → dist\Glance\Glance.exe
-build.bat installer    # + Inno Setup installer → dist\Setup-Glance.exe
+build.bat               # portable build in dist\Glance\
+build.bat installer     # also builds Setup-Glance.exe (requires Inno Setup 6)
 ```
 
-Requires: Python 3.10+, pip. Inno Setup 6 for the installer (optional).
-
-### Icons
-
-Platform icons are generated from `glance.png`:
-
-```bash
-python packaging/generate_icons.py
-# or: make icons
-```
+Requires Python 3.10+, pip. Inno Setup is optional and only needed for the .exe installer.
 
 ---
 
-## Project layout
+## Project structure
 
 ```
 glance/
-  shell/        # Voice + screen companion (the main app)
-  agent/        # Computer-use actuation, permission model, safe file ops
-  providers/    # Claude / OpenAI / Gemini / Ollama / heuristic
-  platform/     # OS-specific backends (Windows UIA, Linux AT-SPI2)
-  cli.py        # glance organize / undo / run
+  shell/           Voice and screen companion (the main application)
+  agent/           Computer-use actuation and permission model
+  providers/       LLM provider abstraction (Claude, OpenAI, Gemini, Ollama, heuristic)
+  platform/        OS-specific backends (Windows UIA, Linux AT-SPI2)
+  cli.py           Entry point for organize, undo, run
 packaging/
-  generate_icons.py     # Icon generation from glance.png
-  glance_app.py         # PyInstaller entry point
-  linux/                # Linux-specific build configs
-glance.spec             # PyInstaller spec (Windows)
-installer.iss           # Inno Setup script (Windows)
-build.bat               # Windows build script
-Makefile                # Linux build automation
+  linux/           Linux build scripts and specs
+  generate_icons.py
+  glance_app.py    PyInstaller entry point
 ```
 
 ---
 
 ## Safety
 
-The **file organizer** is move-only and fully reversible (`glance undo`).
+The file organizer is move-only and fully reversible.
 
-The **voice agent acts directly** on your machine — she does what you ask. She stops before genuinely irreversible, high-stakes actions (send, delete, buy). Press **Esc** to cancel at any time. This is an early build acting on your real machine — watch her.
+The voice companion acts directly on your machine. It stops before irreversible, high-stakes actions (sending messages, deleting files, making purchases) and asks for confirmation. Press **Esc** at any time to cancel. This is an early release operating on your real desktop -- keep an eye on it.
 
 ---
 
 ## Roadmap
 
-- Learnable skills — teach Glance new routines by voice
-- Glance Bridge (MCP) — expose eyes and pointer as an MCP server
-- Better desktop control — opt-in shortcut/icon arrangement
-- Multi-monitor support improvements
-- Mobile companion (status + remote control)
+- Teachable skills -- show Glance a routine once, recall it by name
+- MCP server -- expose screen vision and pointer as a tool for other agents
+- Multi-monitor improvements
+- Mobile companion app for remote status and control
 
 ---
 
-## Credits & license
+## Credits and license
 
-Glance is an independent project by [Anas Abubakar](https://github.com/Anasabubakar). It builds on:
+Built by [Anas Abubakar](https://github.com/Anasabubakar).
 
-- **Clicky** by [@farzaa](https://github.com/farzaa/clicky) — the original macOS screen-companion concept (MIT)
-- **Clicky for Windows** by [Bitshank-2338](https://github.com/Bitshank-2338/clicky-windows) — the Python/PyQt6 Windows companion Glance's voice + pointing pipeline derives from (MIT)
-- **OpenClicky** by [@jasonkneen](https://github.com/jasonkneen/openclicky) — the actively maintained open-source Clicky (MIT)
+Glance builds on the work of several open-source projects:
 
-Released under the [MIT License](LICENSE). Not affiliated with or endorsed by the above projects or Anthropic.
+- [Clicky](https://github.com/farzaa/clicky) by @farzaa -- the original macOS screen companion concept
+- [Clicky for Windows](https://github.com/Bitshank-2338/clicky-windows) by Bitshank-2338 -- the PyQt6 Windows port that Glance's voice and pointing pipeline derives from
+- [OpenClicky](https://github.com/jasonkneen/openclicky) by @jasonkneen -- the actively maintained open-source Clicky fork
+
+Released under the [MIT License](LICENSE).
