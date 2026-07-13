@@ -118,9 +118,11 @@ class SetupWizard(QDialog):
         kb = QVBoxLayout(self.keys_box)
         kb.setContentsMargins(0, 4, 0, 0)
         kb.setSpacing(8)
+        _field_ss = ("QLineEdit { background:#1a1d22; border:1px solid #2a2d33; "
+                     "border-radius:6px; padding:8px; color:#e8eaed; }")
+
         lab1 = QLabel(
-            'Anthropic API key <span style="color:#a0a3a8">(required — this is '
-            'Glance\'s brain)</span> · '
+            'Anthropic API key · '
             '<a href="https://console.anthropic.com/settings/keys" '
             'style="color:#2f7fff">get a key</a>')
         lab1.setOpenExternalLinks(True)
@@ -128,21 +130,45 @@ class SetupWizard(QDialog):
         self.anthropic_edit = QLineEdit()
         self.anthropic_edit.setPlaceholderText("sk-ant-…")
         self.anthropic_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.anthropic_edit.setStyleSheet(
-            "QLineEdit { background:#1a1d22; border:1px solid #2a2d33; "
-            "border-radius:6px; padding:8px; color:#e8eaed; }")
+        self.anthropic_edit.setStyleSheet(_field_ss)
         kb.addWidget(self.anthropic_edit)
-        lab2 = QLabel(
-            'Deepgram API key <span style="color:#a0a3a8">(recommended — fast, '
-            'accurate voice; free tier)</span> · '
+
+        lab_oai = QLabel(
+            'OpenAI API key · '
+            '<a href="https://platform.openai.com/api-keys" '
+            'style="color:#2f7fff">get a key</a>')
+        lab_oai.setOpenExternalLinks(True)
+        kb.addWidget(lab_oai)
+        self.openai_edit = QLineEdit()
+        self.openai_edit.setPlaceholderText("sk-…")
+        self.openai_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.openai_edit.setStyleSheet(_field_ss)
+        kb.addWidget(self.openai_edit)
+
+        lab_gem = QLabel(
+            'Google / Gemini API key · '
+            '<a href="https://aistudio.google.com/apikey" '
+            'style="color:#2f7fff">get a key</a>')
+        lab_gem.setOpenExternalLinks(True)
+        kb.addWidget(lab_gem)
+        self.gemini_edit = QLineEdit()
+        self.gemini_edit.setPlaceholderText("AI…")
+        self.gemini_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.gemini_edit.setStyleSheet(_field_ss)
+        kb.addWidget(self.gemini_edit)
+
+        kb.addSpacing(4)
+        lab_dg = QLabel(
+            'Deepgram API key <span style="color:#a0a3a8">(optional — fast '
+            'voice)</span> · '
             '<a href="https://console.deepgram.com" '
             'style="color:#2f7fff">get a key</a>')
-        lab2.setOpenExternalLinks(True)
-        kb.addWidget(lab2)
+        lab_dg.setOpenExternalLinks(True)
+        kb.addWidget(lab_dg)
         self.deepgram_edit = QLineEdit()
         self.deepgram_edit.setPlaceholderText("optional — falls back to local speech-to-text")
         self.deepgram_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.deepgram_edit.setStyleSheet(self.anthropic_edit.styleSheet())
+        self.deepgram_edit.setStyleSheet(_field_ss)
         kb.addWidget(self.deepgram_edit)
         self.keys_box.hide()
         layout.addWidget(self.keys_box)
@@ -193,13 +219,13 @@ class SetupWizard(QDialog):
             self.title.setText("Welcome to Glance 🧤")
             self.subtitle.setText(
                 "How should Glance think?\n\n"
-                "• Your API key (recommended) — the full experience: she sees your "
-                "screen, points, and actually does things. Claude's free credits "
-                "work fine.\n"
-                "• Free local mode — runs on your machine via Ollama (~2-5 GB "
-                "download). She can see and talk, but can't act."
+                "• Your API key — the full experience: she sees your "
+                "screen, points, and actually does things. Works with "
+                "Anthropic, OpenAI, or Google Gemini.\n"
+                "• Free local mode — runs on your machine via Ollama. "
+                "She can see and talk, but can't act."
             )
-            self.action_btn.setText("Use my API key  (recommended)")
+            self.action_btn.setText("Use my API key")
             self.action_btn.setEnabled(True)
             self.skip_btn.setText("Free local mode (Ollama)")
             self.skip_btn.setEnabled(True)
@@ -209,8 +235,8 @@ class SetupWizard(QDialog):
         elif step == "keys":
             self.title.setText("Paste your keys")
             self.subtitle.setText(
-                "Both take about a minute to create. Your keys are stored only on "
-                "this computer, and are only ever sent to Anthropic / Deepgram."
+                "Paste at least one AI key. Your keys are stored only on "
+                "this computer and sent directly to the provider."
             )
             self.keys_box.show()
             self.action_btn.setText("Save && test")
@@ -223,19 +249,27 @@ class SetupWizard(QDialog):
             self.action_btn.setEnabled(False)
             self.skip_btn.setEnabled(False)
             self.keys_box.show()
-            self.status.setText("Checking your key with Anthropic…")
+            self.status.setText("Checking your keys…")
 
         elif step == "intro":
             running = ob.is_ollama_running()
+            installed = ob.is_ollama_installed()
             if running:
                 self.title.setText("Ollama detected ✓")
                 self.subtitle.setText(
-                    "Ollama is already running on your machine. We'll just check that "
-                    "the AI models you need are downloaded."
+                    "Ollama is already running on your machine. "
+                    "Let's pick which model to use."
                 )
-                self.action_btn.setText("Check models")
+                self.action_btn.setText("Choose model")
+            elif installed:
+                self.title.setText("Ollama found — starting it up")
+                self.subtitle.setText(
+                    "Ollama is installed but not running. We'll start it "
+                    "and then let you pick a model."
+                )
+                self.action_btn.setText("Start Ollama")
             else:
-                self.title.setText("Step 1 of 3 — Install Ollama")
+                self.title.setText("Step 1 — Install Ollama")
                 self.subtitle.setText(
                     "Ollama is the engine that runs the AI on your computer. "
                     "We'll download and install it for you (≈700 MB)."
@@ -244,6 +278,14 @@ class SetupWizard(QDialog):
             self.skip_btn.setText("Back")
             self.skip_btn.setEnabled(True)
             self.status.setText("")
+
+        elif step == "starting_ollama":
+            self.title.setText("Starting Ollama…")
+            self.subtitle.setText("Waiting for the Ollama server to come online.")
+            self.action_btn.setEnabled(False)
+            self.skip_btn.setEnabled(False)
+            self.status.setText("Starting…")
+            self.progress.show()
 
         elif step == "installing":
             self.title.setText("Installing Ollama…")
@@ -295,6 +337,34 @@ class SetupWizard(QDialog):
             self.status.setText("Connecting to Ollama…")
             self.progress.show()
 
+        elif step == "pick_model":
+            models = ob.list_installed_models()
+            self._installed_models = models
+            if models:
+                self.title.setText("Pick a model")
+                listing = "\n".join(f"  • {m}" for m in models[:15])
+                self.subtitle.setText(
+                    f"You have {len(models)} model(s) installed:\n{listing}\n\n"
+                    "Click 'Use selected' to pick one, or pull a recommended model."
+                )
+                self._build_model_list(models)
+                self.action_btn.setText("Use selected")
+                self.action_btn.setEnabled(True)
+                self.skip_btn.setText("Pull recommended instead")
+                self.skip_btn.setEnabled(True)
+                self.skip_btn.show()
+            else:
+                self.title.setText("No models found")
+                self.subtitle.setText(
+                    "Ollama is running but no models are installed yet. "
+                    "We'll pull a small recommended model for you."
+                )
+                self.action_btn.setText("Pull recommended model")
+                self.action_btn.setEnabled(True)
+                self.skip_btn.setText("Back")
+                self.skip_btn.setEnabled(True)
+            self.status.setText("")
+
         elif step == "done":
             self.title.setText("All set 🎉")
             self.subtitle.setText(
@@ -316,22 +386,48 @@ class SetupWizard(QDialog):
 
         elif s == "keys":
             a_key = self.anthropic_edit.text().strip()
+            o_key = self.openai_edit.text().strip()
+            g_key = self.gemini_edit.text().strip()
             d_key = self.deepgram_edit.text().strip()
-            if not a_key:
-                self.status.setText("⚠️ Paste your Anthropic key (it starts with sk-ant-).")
+            if not (a_key or o_key or g_key):
+                self.status.setText("⚠️ Paste at least one AI provider key.")
                 return
-            self._pending_keys = {"ANTHROPIC_API_KEY": a_key,
-                                  "DEEPGRAM_API_KEY": d_key,
-                                  "GLANCE_ACTIVE_LLM": "claude"}
+            provider = "claude" if a_key else ("openai" if o_key else "gemini")
+            self._pending_keys = {}
+            if a_key:
+                self._pending_keys["ANTHROPIC_API_KEY"] = a_key
+            if o_key:
+                self._pending_keys["OPENAI_API_KEY"] = o_key
+            if g_key:
+                self._pending_keys["GOOGLE_API_KEY"] = g_key
+            if d_key:
+                self._pending_keys["DEEPGRAM_API_KEY"] = d_key
+            self._pending_keys["GLANCE_ACTIVE_LLM"] = provider
             self._set_step("validating_keys")
-            self._start_key_check_worker(a_key, d_key)
+            self._start_key_check_worker(a_key, o_key, g_key, d_key)
 
         elif s == "intro":
             if ob.is_ollama_running():
-                self._goto_next_model_step()
+                self._set_step("pick_model")
+            elif ob.is_ollama_installed():
+                self._set_step("starting_ollama")
+                self._start_ollama_worker()
             else:
                 self._set_step("installing")
                 self._start_install_worker()
+
+        elif s == "pick_model":
+            models = getattr(self, "_installed_models", [])
+            selected = getattr(self, "_selected_model", None)
+            if models and not selected:
+                selected = models[0]
+            if selected:
+                cfg.set_ollama_model("vision", selected)
+                cfg.set_ollama_model("text", selected)
+                os.environ["GLANCE_ACTIVE_LLM"] = "ollama"
+                self._set_step("done")
+            else:
+                self._set_step("text_model")
 
         elif s == "text_model":
             self._set_step("pulling_text")
@@ -352,6 +448,9 @@ class SetupWizard(QDialog):
             self._set_step("choice")
         elif s == "intro":
             self._set_step("choice")
+        elif s == "pick_model":
+            # "Pull recommended instead" — go to the standard pull flow
+            self._set_step("text_model")
         elif s == "text_model":
             self._set_step("vision_model")
         elif s == "vision_model":
@@ -359,34 +458,64 @@ class SetupWizard(QDialog):
 
     # ── Workers (run on a background thread) ─────────────────────────────────
 
-    def _start_key_check_worker(self, a_key: str, d_key: str):
-        """Validate the pasted keys with tiny real API calls, off the UI thread."""
+    def _start_key_check_worker(self, a_key: str, o_key: str, g_key: str, d_key: str):
+        """Validate pasted keys with real API calls, off the UI thread."""
         def _worker():
             import httpx
-            try:
-                r = httpx.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={"x-api-key": a_key,
-                             "anthropic-version": "2023-06-01",
-                             "content-type": "application/json"},
-                    json={"model": "claude-haiku-4-5-20251001", "max_tokens": 1,
-                          "messages": [{"role": "user", "content": "hi"}]},
-                    timeout=20)
-                if r.status_code in (401, 403):
-                    self.finished_signal.emit(
-                        False, "Anthropic rejected that key — double-check it "
-                               "(it should start with sk-ant-).")
-                    return
-                if r.status_code >= 400:
-                    self.finished_signal.emit(
-                        False, f"Anthropic returned an error ({r.status_code}). "
-                               "Check the key and your account credits.")
-                    return
-            except Exception:
+            validated_any = False
+            errors = []
+
+            if a_key:
+                try:
+                    r = httpx.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={"x-api-key": a_key,
+                                 "anthropic-version": "2023-06-01",
+                                 "content-type": "application/json"},
+                        json={"model": "claude-haiku-4-5-20251001", "max_tokens": 1,
+                              "messages": [{"role": "user", "content": "hi"}]},
+                        timeout=20)
+                    if r.status_code in (401, 403):
+                        errors.append("Anthropic rejected its key.")
+                    elif r.status_code >= 500:
+                        validated_any = True  # server error, key probably fine
+                    else:
+                        validated_any = True
+                except Exception:
+                    errors.append("Couldn't reach Anthropic.")
+
+            if o_key:
+                try:
+                    r = httpx.get(
+                        "https://api.openai.com/v1/models",
+                        headers={"Authorization": f"Bearer {o_key}"},
+                        timeout=15)
+                    if r.status_code in (401, 403):
+                        errors.append("OpenAI rejected its key.")
+                    else:
+                        validated_any = True
+                except Exception:
+                    errors.append("Couldn't reach OpenAI.")
+
+            if g_key:
+                try:
+                    r = httpx.post(
+                        f"https://generativelanguage.googleapis.com/v1beta/models/"
+                        f"gemini-2.0-flash:generateContent?key={g_key}",
+                        json={"contents": [{"parts": [{"text": "hi"}]}]},
+                        timeout=15)
+                    if r.status_code in (400, 403):
+                        errors.append("Gemini rejected its key.")
+                    else:
+                        validated_any = True
+                except Exception:
+                    errors.append("Couldn't reach Gemini.")
+
+            if not validated_any:
                 self.finished_signal.emit(
-                    False, "Couldn't reach Anthropic — check your internet "
-                           "connection and try again.")
+                    False, " ".join(errors) or "All keys failed validation.")
                 return
+
             if d_key:
                 try:
                     r = httpx.get("https://api.deepgram.com/v1/projects",
@@ -394,11 +523,10 @@ class SetupWizard(QDialog):
                                   timeout=15)
                     if r.status_code >= 400:
                         self.finished_signal.emit(
-                            False, "Your Anthropic key works, but Deepgram "
-                                   "rejected its key — fix or clear that field.")
+                            False, "AI key(s) work, but Deepgram rejected its key.")
                         return
                 except Exception:
-                    pass   # Deepgram unreachable ≠ bad key; don't block setup
+                    pass
             self.finished_signal.emit(True, "")
 
         self._worker = threading.Thread(target=_worker, daemon=True)
@@ -430,6 +558,75 @@ class SetupWizard(QDialog):
 
         self._worker = threading.Thread(target=_worker, daemon=True)
         self._worker.start()
+
+    def _start_ollama_worker(self):
+        """Try to start the Ollama server (binary is on PATH but server isn't running)."""
+        def _worker():
+            import subprocess, shutil
+            exe = shutil.which("ollama")
+            if not exe:
+                self.finished_signal.emit(False, "Ollama binary not found on PATH.")
+                return
+            try:
+                subprocess.Popen(
+                    [exe, "serve"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+            except Exception as e:
+                self.finished_signal.emit(False, f"Failed to start Ollama: {e}")
+                return
+            self.progress_signal.emit("Waiting for Ollama to come online…", 50.0)
+            ok = ob.wait_for_ollama_server(timeout=30)
+            if ok:
+                self.finished_signal.emit(True, "")
+            else:
+                self.finished_signal.emit(
+                    False, "Ollama didn't come online. Try starting it manually.")
+
+        self._worker = threading.Thread(target=_worker, daemon=True)
+        self._worker.start()
+
+    def _build_model_list(self, models: list):
+        """Populate the model picker radio-style list. Stores selection in self._selected_model."""
+        self._selected_model = models[0] if models else None
+        # Clear any previous model list widget
+        if hasattr(self, "_model_list_widget"):
+            self._model_list_widget.setParent(None)
+            self._model_list_widget.deleteLater()
+
+        from PyQt6.QtWidgets import QRadioButton, QButtonGroup, QScrollArea
+
+        scroll = QScrollArea()
+        scroll.setMaximumHeight(160)
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet(
+            "QScrollArea { border: 1px solid #2a2d33; border-radius: 6px; "
+            "background: #1a1d22; }"
+            "QRadioButton { color: #e8eaed; padding: 4px 8px; font-size: 13px; }"
+            "QRadioButton::indicator { width: 14px; height: 14px; }"
+        )
+        inner = QWidget()
+        vbox = QVBoxLayout(inner)
+        vbox.setContentsMargins(8, 4, 8, 4)
+        vbox.setSpacing(2)
+        group = QButtonGroup(inner)
+
+        for i, m in enumerate(models[:15]):
+            rb = QRadioButton(m)
+            if i == 0:
+                rb.setChecked(True)
+            group.addButton(rb, i)
+            vbox.addWidget(rb)
+
+        def _on_select(btn):
+            self._selected_model = btn.text()
+        group.buttonClicked.connect(_on_select)
+
+        scroll.setWidget(inner)
+        # Insert the scroll area into the main layout before the buttons
+        self.layout().insertWidget(3, scroll)
+        self._model_list_widget = scroll
 
     def _start_pull_worker(self, model: str, next_step: str):
         self._next_step = next_step
@@ -467,11 +664,12 @@ class SetupWizard(QDialog):
 
         s = self._step
         if s == "validating_keys":
-            # Keys are good — persist them (frozen-safe path) + apply live.
             cfg.save_env_values(getattr(self, "_pending_keys", {}))
             self._set_step("done")
         elif s == "installing":
-            self._goto_next_model_step()
+            self._set_step("pick_model")
+        elif s == "starting_ollama":
+            self._set_step("pick_model")
         elif s == "pulling_text":
             self._set_step("vision_model")
         elif s == "pulling_vision":
@@ -491,16 +689,10 @@ def maybe_show_setup_wizard(parent=None) -> SetupWizard | None:
     """Open the wizard only if it hasn't run before AND something is missing."""
     if setup_already_ran():
         return None
-    if cfg.anthropic_api_key:
-        # Already configured with a key (dev checkout / hand-made .env) — the
-        # full experience works; don't pester.
+    if cfg.anthropic_api_key or cfg.openai_api_key or cfg.google_api_key:
         mark_setup_complete()
         return None
-    if (
-        ob.is_ollama_running()
-        and ob.is_model_installed(cfg.ollama_text_model)
-    ):
-        # Local path already wired up — don't pester the user.
+    if ob.is_ollama_running() and ob.list_installed_models():
         mark_setup_complete()
         return None
 
