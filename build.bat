@@ -46,7 +46,20 @@ if errorlevel 1 (
 python -c "import PyQt6" 2>nul
 if errorlevel 1 (
     echo     Installing project requirements...
-    python -m pip install --quiet -e ".[shell,claude]"
+    python -m pip install --quiet -e ".[shell,claude,openai,gemini]"
+)
+REM Ensure all provider SDKs are present even if PyQt6 was already installed —
+REM otherwise PyInstaller collect_all() silently skips them and the packaged
+REM build can't switch to OpenAI/Gemini at runtime.
+python -c "import openai" 2>nul
+if errorlevel 1 (
+    echo     Installing openai...
+    python -m pip install --quiet "openai>=1.0"
+)
+python -c "import google.generativeai" 2>nul
+if errorlevel 1 (
+    echo     Installing google-generativeai...
+    python -m pip install --quiet "google-generativeai>=0.8"
 )
 
 REM ── 3. Generate icon from logo ─────────────────────────────────────

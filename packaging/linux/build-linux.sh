@@ -46,7 +46,18 @@ build_portable() {
     }
     python3 -c "import PyQt6" 2>/dev/null || {
         echo "    Installing project requirements..."
-        pip install --quiet -e ".[shell,claude]"
+        pip install --quiet -e ".[shell,claude,openai,gemini]"
+    }
+    # Ensure all provider SDKs are present even if PyQt6 was already installed —
+    # otherwise PyInstaller collect_all() silently skips them and the packaged
+    # build can't switch to OpenAI/Gemini at runtime.
+    python3 -c "import openai" 2>/dev/null || {
+        echo "    Installing openai..."
+        pip install --quiet "openai>=1.0"
+    }
+    python3 -c "import google.generativeai" 2>/dev/null || {
+        echo "    Installing google-generativeai..."
+        pip install --quiet "google-generativeai>=0.8"
     }
 
     # 3. Clean old build

@@ -18,7 +18,7 @@ icons: ## Generate all platform icons from glance.png
 	python3 packaging/generate_icons.py
 
 install-deps: ## Install Python dependencies for building
-	pip install -e ".[shell,claude,dev]"
+	pip install -e ".[shell,claude,openai,gemini,dev]"
 	pip install pyinstaller
 
 # ── Linux ─────────────────────────────────────────────────────────────

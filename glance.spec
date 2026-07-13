@@ -24,7 +24,10 @@ datas, binaries, hiddenimports = [], [], []
 # Heavy/awkward third-party packages — grab data, DLLs, and submodules.
 for pkg in (
     "PyQt6", "sounddevice", "soundfile", "uiautomation", "comtypes",
-    "edge_tts", "faster_whisper", "av", "mss", "anthropic",
+    "edge_tts", "faster_whisper", "av", "mss",
+    # Multi-provider LLM SDKs — all optional at runtime, but bundled so users
+    # can pick ANY provider from the tray without a separate install.
+    "anthropic", "openai", "google", "google.generativeai",
 ):
     try:
         d, b, h = collect_all(pkg)
