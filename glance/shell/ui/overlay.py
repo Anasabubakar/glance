@@ -2,25 +2,28 @@
 Glance's blue buddy cursor — faithful port of the original macOS overlay.
 
 Matches the original OverlayWindow.swift pattern:
-  - Flat solid blue equilateral triangle (#3380FF), 16×16, rotated -35°
+  - Custom glance-cursor.png (blue "O" mark), rendered at ~28×28 with a soft glow
   - Sits at (+35, +25) relative to the real cursor
   - Soft blue drop shadow (radius ~8)
   - States cross-fade in place:
-      idle / speaking → triangle
+      idle / speaking → cursor mark
       listening       → 5-bar waveform
       thinking        → rotating arc spinner
-      pointing        → triangle + speech bubble ("found it!" etc.)
+      pointing        → cursor mark + speech bubble ("found it!" etc.)
 """
 
 import math
+import os
 import random
+import sys
 import time
+from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtWidgets import QWidget, QApplication
 from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF
 from PyQt6.QtGui import (
-    QPainter, QColor, QPen, QBrush, QPainterPath, QCursor, QFont,
+    QPainter, QColor, QPen, QBrush, QPainterPath, QCursor, QFont, QPixmap,
 )
 
 
@@ -34,13 +37,32 @@ MODE_SPEAKING  = "speaking"
 OFFSET_X = 35
 OFFSET_Y = 25
 
-# Triangle bounding box edge (Swift: frame(width: 16, height: 16))
+# Rendered cursor size in logical pixels — snug like a real cursor, not a button.
+# System cursors are typically 24-32px. 28 balances visibility with "cursor-y" feel.
+CURSOR_SIZE = 28
+# Legacy — still used by waveform/spinner sizing that referenced the triangle bbox
 TRI_SIZE = 16
-# Swift: .rotationEffect(.degrees(-35))
-TRI_ROTATION_DEG = -35.0
+# Cursor image doesn't need the -35° tilt the old triangle needed; it reads as a
+# ring/O and looks correct upright. Kept for legacy references but unused in the
+# main draw.
+TRI_ROTATION_DEG = 0.0
 
 # #3380FF
 CURSOR_BLUE = QColor(0x33, 0x80, 0xFF)
+
+
+def _cursor_asset_path() -> Optional[Path]:
+    """Locate glance-cursor.png in the assets folder (dev + frozen builds)."""
+    here = Path(__file__).resolve().parent
+    candidates = [
+        here.parent / "assets" / "glance-cursor.png",     # dev checkout
+        Path(getattr(sys, "_MEIPASS", "")) / "assets" / "glance-cursor.png",  # PyInstaller
+        Path.cwd() / "glance-cursor.png",                 # repo root fallback
+    ]
+    for c in candidates:
+        if c and c.exists():
+            return c
+    return None
 
 # Pointing phrases from the original
 POINTER_PHRASES = (
@@ -107,6 +129,23 @@ class CursorOverlay(QWidget):
 
         # Thinking spinner phase
         self._spin_phase: float = 0.0
+
+        # Load the custom cursor image once (scaled to CURSOR_SIZE with alpha).
+        # If it's missing we fall back to the triangle path.
+        self._cursor_pix: Optional[QPixmap] = None
+        path = _cursor_asset_path()
+        if path is not None:
+            pm = QPixmap(str(path))
+            if not pm.isNull():
+                # Scale to target size preserving aspect + smooth filtering.
+                # We render 2× the display size internally so retina/HiDPI
+                # displays keep the edges crisp.
+                render_size = CURSOR_SIZE * 2
+                self._cursor_pix = pm.scaled(
+                    render_size, render_size,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
 
         # Transparent click-through, covers all monitors
         self.setWindowFlags(
@@ -472,11 +511,42 @@ class CursorOverlay(QWidget):
             p.drawEllipse(QPointF(cx, cy), radius * r_mul, radius * r_mul)
 
     def _draw_triangle(self, p, cx, cy):
-        """Flat blue equilateral triangle, rotated -35° → cursor-like tilt."""
+        """Render the Glance cursor mark (custom PNG) at the current display pos,
+        with a soft blue glow behind it. Falls back to the original triangle if
+        the asset is missing."""
+        if self._cursor_pix is None or self._cursor_pix.isNull():
+            self._draw_triangle_fallback(p, cx, cy)
+            return
+
+        size = CURSOR_SIZE
+
+        p.save()
+        p.translate(cx, cy)
+
+        # Soft blue halo behind the mark — makes it visible on any background.
+        glow = QColor(CURSOR_BLUE)
+        for r_mul, alpha in ((2.0, 30), (1.5, 50), (1.1, 80)):
+            glow.setAlpha(alpha)
+            p.setBrush(QBrush(glow))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(QPointF(0, 0), size * r_mul * 0.5, size * r_mul * 0.5)
+
+        # Flight-scale + tangent rotation carry over from the pointing animation
+        p.rotate(self._rotation_deg)
+        p.scale(self._flight_scale, self._flight_scale)
+
+        # Draw the pixmap centred on the display position
+        target = QRectF(-size / 2, -size / 2, size, size)
+        p.drawPixmap(target, self._cursor_pix, QRectF(self._cursor_pix.rect()))
+
+        p.restore()
+
+    def _draw_triangle_fallback(self, p, cx, cy):
+        """Original flat blue equilateral triangle — used only when the custom
+        PNG asset is missing."""
         size = TRI_SIZE
         height = size * math.sqrt(3) / 2
 
-        # Build triangle in local coords, then rotate/translate
         path = QPainterPath()
         path.moveTo(0, -height / 1.5)              # top vertex
         path.lineTo(-size / 2, height / 3)         # bottom-left
@@ -494,7 +564,7 @@ class CursorOverlay(QWidget):
             p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(QPointF(0, 0), size * r_mul * 0.5, size * r_mul * 0.5)
 
-        p.rotate(self._rotation_deg)
+        p.rotate(-35.0)  # legacy Swift tilt for the triangle
         p.scale(self._flight_scale, self._flight_scale)
         p.setBrush(QBrush(CURSOR_BLUE))
         p.setPen(Qt.PenStyle.NoPen)
