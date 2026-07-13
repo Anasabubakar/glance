@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 from config import cfg
 from ui.tray import TrayManager
@@ -328,8 +328,6 @@ def main():
             tray.show_notification("Diagnostics failed", str(e))
     tray.on_diagnostics.connect(_save_diagnostics)
 
-    tray.on_quit.connect(lambda: (manager.shutdown(), app.quit()))
-
     # ── Global hotkey ─────────────────────────────────────────────────────────
     hotkey = GlobalHotkeyMonitor(
         on_press=manager.on_hotkey_press,
@@ -340,6 +338,36 @@ def main():
     # Esc = cancel current generation (kills Ollama ramble mid-stream)
     stop_key = StopHotkey(on_stop=manager.stop, key="esc")
     stop_key.start()
+
+    # ── Quit handler ──────────────────────────────────────────────────────────
+    # Order matters: stop the pynput hotkey threads BEFORE Qt exits, otherwise
+    # they keep the Python process alive (they're non-daemon by default) and
+    # "Quit Glance" appears to do nothing.
+    def _quit_glance():
+        try:
+            hotkey.stop()
+        except Exception:
+            pass
+        try:
+            stop_key.stop()
+        except Exception:
+            pass
+        try:
+            manager.shutdown()
+        except Exception:
+            pass
+        try:
+            tray.hide()  # remove the tray icon immediately for visual feedback
+        except Exception:
+            pass
+        app.quit()
+        # Safety net: even after app.quit(), some third-party threads
+        # (pynput, sounddevice PortAudio callback, faster-whisper CT2) can
+        # linger long enough to make Quit look broken. Force-exit after Qt
+        # has had a chance to tear its own event loop down.
+        QTimer.singleShot(500, lambda: os._exit(0))
+
+    tray.on_quit.connect(_quit_glance)
 
     # ── Show UI + start listener ──────────────────────────────────────────────
     overlay.show()        # persistent overlay (cursor follow)

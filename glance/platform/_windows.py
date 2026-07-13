@@ -130,7 +130,11 @@ def find_ui_element(query: str, min_score: float = 0.5):
     except Exception:
         return None
 
-    from glance.shell.ai.hybrid_pointer import _score_match
+    import os as _os, sys as _sys
+    _shell = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "shell")
+    if _shell not in _sys.path:
+        _sys.path.insert(0, _shell)
+    from ai.hybrid_pointer import _score_match
     best_score = 0.0
     best_result = None
     queue = [(root, 0)]

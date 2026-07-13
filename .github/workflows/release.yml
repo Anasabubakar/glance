@@ -32,8 +32,12 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install -e ".[shell,claude,dev]"
+          pip install -e ".[shell,claude,openai,gemini,dev]"
           pip install pyinstaller
+          # Verify the provider SDKs are importable — if any are missing,
+          # PyInstaller's collect_all() silently skips them and the packaged
+          # build can't switch to that provider at runtime.
+          python -c "import anthropic, openai, google.generativeai"
 
       - name: Build all Linux packages
         run: |
@@ -63,8 +67,12 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -e ".[shell,claude,dev]"
+          pip install -e ".[shell,claude,openai,gemini,dev]"
           pip install pyinstaller
+          # Verify the provider SDKs are importable — if any are missing,
+          # PyInstaller's collect_all() silently skips them and the packaged
+          # build can't switch to that provider at runtime.
+          python -c "import anthropic, openai, google.generativeai"
 
       - name: Generate icons
         run: python packaging/generate_icons.py
@@ -87,8 +95,8 @@ jobs:
         with:
           name: windows-packages
           path: |
-            dist/Glance/
             dist/Setup-Glance.exe
+            dist/Glance/
 
   # ── Release ─────────────────────────────────────────────────────────
   release:
