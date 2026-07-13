@@ -12,14 +12,26 @@ venv/
 *.env.local
 .dev.vars
 
-# Clacky runtime / build artifacts
-~/.clacky/
+# Build artifacts
 build/
 dist/
 *.spec.bak
 *.log
 
+# Generated icons (rebuild with: make icons)
+packaging/icons/
+
 # OS
 .DS_Store
 Thumbs.db
 demo.bat
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Frontend build
+frontend/.next/
+frontend/node_modules/
