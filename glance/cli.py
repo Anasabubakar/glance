@@ -80,7 +80,10 @@ def _cmd_undo(_args) -> int:
     return 0
 
 
-def _cmd_run(_args) -> int:
+def _cmd_run(args) -> int:
+    if getattr(args, "no_launcher", False):
+        import os
+        os.environ["GLANCE_NO_LAUNCHER"] = "1"
     from .companion import launch
     return launch()
 
@@ -103,6 +106,8 @@ def build_parser() -> argparse.ArgumentParser:
     undo.set_defaults(func=_cmd_undo)
 
     runp = sub.add_parser("run", help="launch the companion shell (voice + screen + pointing)")
+    runp.add_argument("--no-launcher", action="store_true",
+                      help="skip the dashboard and launch the companion directly")
     runp.set_defaults(func=_cmd_run)
     return p
 
