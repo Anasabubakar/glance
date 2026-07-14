@@ -1,18 +1,22 @@
-import Nav from "../components/Nav";
-import Hero from "../components/Hero";
-import BentoGrid from "../components/BentoGrid";
-import TrustLayer from "../components/TrustLayer";
-import BrainSpecs from "../components/BrainSpecs";
-import Footer from "../components/Footer";
+import Nav from "@/components/landing/Nav";
+import Hero from "@/components/landing/Hero";
+import ProductPreview from "@/components/landing/ProductPreview";
+import FeaturesBento from "@/components/landing/FeaturesBento";
+import Providers from "@/components/landing/Providers";
+import HowItWorks from "@/components/landing/HowItWorks";
+import DownloadCTA from "@/components/landing/DownloadCTA";
+import Footer from "@/components/landing/Footer";
 
 export default function Home() {
   return (
-    <main className="bg-zinc-950 min-h-screen text-white selection:bg-blue-500 selection:text-white">
+    <main id="main-content" className="bg-bg-deep min-h-screen text-text-primary">
       <Nav />
       <Hero />
-      <BentoGrid />
-      <TrustLayer />
-      <BrainSpecs />
+      <ProductPreview />
+      <FeaturesBento />
+      <Providers />
+      <HowItWorks />
+      <DownloadCTA />
       <Footer />
     </main>
   );
