@@ -233,3 +233,51 @@ function ArchitectureContent() {
     </>
   );
 }
+
+function ConfigurationContent() {
+  return (
+    <>
+      <h2 id="settings-file" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Settings File</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Glance stores its configuration in a JSON file:
+      </p>
+      <CodeBlock
+        code={`# Windows\n%APPDATA%/Glance/config.json\n\n# Linux\n~/.config/glance/config.json`}
+        language="bash"
+        filename="config location"
+      />
+
+      <h2 id="llm-provider" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">LLM Provider</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Set your preferred LLM provider. Glance works without one, but connecting a provider
+        unlocks full capabilities.
+      </p>
+      <CodeBlock
+        code={`{\n  "provider": "claude",\n  "apiKey": "sk-ant-...",\n  "model": "claude-sonnet-4-20250514"\n}`}
+        language="json"
+        filename="config.json"
+      />
+
+      <h2 id="hotkey" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Custom Hotkey</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Change the summon hotkey from the default <kbd className="px-1.5 py-0.5 rounded bg-bg-card text-xs font-mono border border-border-subtle">Ctrl + Alt + M</kbd>:
+      </p>
+      <CodeBlock
+        code={`{\n  "hotkey": "ctrl+shift+space"\n}`}
+        language="json"
+        filename="config.json"
+      />
+
+      <h2 id="voice" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Voice Settings</h2>
+      <CodeBlock
+        code={`{\n  "voice": {\n    "enabled": true,\n    "engine": "whisper",\n    "language": "en",\n    "autoListen": true\n  }\n}`}
+        language="json"
+        filename="config.json"
+      />
+
+      <Callout type="tip" title="Hot reload">
+        Changes to the config file are picked up automatically — no restart needed.
+      </Callout>
+    </>
+  );
+}
