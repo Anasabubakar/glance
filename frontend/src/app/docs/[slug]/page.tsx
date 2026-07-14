@@ -56,3 +56,43 @@ export default async function DocPage({
     </article>
   );
 }
+
+function InstallationContent() {
+  return (
+    <>
+      <h2 id="system-requirements" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">System Requirements</h2>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• <strong className="text-text-primary">Windows</strong>: Windows 10 or later (64-bit)</li>
+        <li>• <strong className="text-text-primary">Linux</strong>: Ubuntu 20.04+, Debian 11+, or equivalent (X11/Wayland)</li>
+        <li>• <strong className="text-text-primary">RAM</strong>: 4 GB minimum, 8 GB recommended</li>
+        <li>• <strong className="text-text-primary">Storage</strong>: ~100 MB free space</li>
+      </ul>
+
+      <h2 id="windows" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Windows</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Download the latest <code className="px-1.5 py-0.5 rounded bg-bg-card text-xs font-mono text-indigo">.exe</code> installer from the GitHub releases page:
+      </p>
+      <CodeBlock
+        code="# Download from GitHub releases\nhttps://github.com/Anasabubakar/glance/releases/latest"
+        language="bash"
+      />
+      <p className="text-text-muted leading-relaxed mb-4">
+        Run the installer and follow the prompts. Glance will start automatically after installation.
+      </p>
+
+      <h2 id="linux" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Linux</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Download the <code className="px-1.5 py-0.5 rounded bg-bg-card text-xs font-mono text-indigo">.deb</code> package:
+      </p>
+      <CodeBlock
+        code={`# Download the .deb package\nwget https://github.com/Anasabubakar/glance/releases/latest/download/glance.deb\n\n# Install\nsudo dpkg -i glance.deb\n\n# Start Glance\nglance`}
+        language="bash"
+        filename="terminal"
+      />
+
+      <Callout type="tip" title="Build from source">
+        You can also build Glance from source. See the <a href="/docs/contributing" className="text-indigo hover:underline">Contributing</a> guide for instructions.
+      </Callout>
+    </>
+  );
+}
