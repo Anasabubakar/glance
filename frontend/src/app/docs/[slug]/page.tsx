@@ -191,3 +191,45 @@ function FeaturesContent() {
     </>
   );
 }
+
+function ArchitectureContent() {
+  return (
+    <>
+      <h2 id="overview" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Overview</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Glance is built as a cross-platform desktop application with a modular architecture. Its components work together to capture context, coordinate model providers, and execute actions locally.
+      </p>
+
+      <h2 id="components" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Core Components</h2>
+      <ul className="space-y-3 text-text-muted mb-6">
+        <li className="flex gap-2">
+          <span className="text-indigo font-bold">1.</span>
+          <span><strong className="text-text-primary">Screen Capture</strong> — Captures screen content using native APIs</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="text-indigo font-bold">2.</span>
+          <span><strong className="text-text-primary">Vision Pipeline</strong> — Processes screenshots to extract text and UI elements</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="text-indigo font-bold">3.</span>
+          <span><strong className="text-text-primary">LLM Router</strong> — Routes requests to the configured LLM provider</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="text-indigo font-bold">4.</span>
+          <span><strong className="text-text-primary">Action Engine</strong> — Executes clicks, typing, scrolling via OS-level APIs</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="text-indigo font-bold">5.</span>
+          <span><strong className="text-text-primary">Cursor Buddy</strong> — The overlay UI that follows your cursor</span>
+        </li>
+      </ul>
+
+      <h2 id="tech-stack" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Tech Stack</h2>
+      <CodeBlock
+        code={`Framework:    Electron\nFrontend:     React + TypeScript\nBackend:      Node.js\nScreen Cap:   Native OS APIs\nVoice:        Web Speech API / Whisper\nBuild:        electron-builder`}
+        language="yaml"
+        filename="tech-stack"
+      />
+    </>
+  );
+}
