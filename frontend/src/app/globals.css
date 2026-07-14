@@ -64,3 +64,65 @@ body {
     }
   }
 }
+
+@layer utilities {
+  .text-gradient-brand {
+    background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-violet) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bg-gradient-brand {
+    background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-violet) 100%);
+  }
+
+  .glow-brand {
+    box-shadow: 0 0 40px rgba(100, 107, 242, 0.3), 0 0 80px rgba(140, 122, 250, 0.15);
+  }
+
+  .glow-brand-lg {
+    box-shadow: 0 0 60px rgba(100, 107, 242, 0.4), 0 0 120px rgba(140, 122, 250, 0.2);
+  }
+
+  .border-gradient-brand {
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    background-origin: padding-box;
+  }
+
+  .glass {
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    background: rgba(5, 5, 16, 0.7);
+  }
+
+  .glass-card {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(20, 20, 31, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+}
