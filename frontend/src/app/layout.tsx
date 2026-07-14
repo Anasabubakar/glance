@@ -51,3 +51,26 @@ export const metadata: Metadata = {
     type: "website",
   },
 };
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${spaceGrotesk.variable} antialiased`}
+    >
+      <body className="min-h-dvh bg-bg-deep text-text-primary font-sans">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-indigo focus:text-white focus:text-sm focus:font-medium"
+        >
+          Skip to content
+        </a>
+        {children}
+      </body>
+    </html>
+  );
+}
