@@ -35,6 +35,16 @@ def launch() -> int:
             missing = getattr(e, "name", None) or "a dependency"
             print(f"Glance: shell import failed (missing: {missing}).", file=sys.stderr)
             return 3
+
+        # ── Dashboard launcher (frozen) ──────────────────────────────────
+        if not os.environ.get("GLANCE_NO_LAUNCHER", "").strip():
+            try:
+                from ui.launcher import show_launcher
+                return show_launcher()
+            except Exception as e:
+                print(f"Glance: launcher failed, falling back to companion: {e}",
+                      file=sys.stderr)
+
         _shell_main.main()
         return 0
 
@@ -45,6 +55,15 @@ def launch() -> int:
 
     if SHELL_DIR not in sys.path:
         sys.path.insert(0, SHELL_DIR)
+
+    # ── Dashboard launcher (dev) ─────────────────────────────────────────
+    if not os.environ.get("GLANCE_NO_LAUNCHER", "").strip():
+        try:
+            from ui.launcher import show_launcher
+            return show_launcher()
+        except Exception as e:
+            print(f"Glance: launcher failed, falling back to companion: {e}",
+                  file=sys.stderr)
 
     try:
         runpy.run_path(_ENTRY, run_name="__main__")
