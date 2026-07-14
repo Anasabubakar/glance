@@ -96,3 +96,49 @@ function InstallationContent() {
     </>
   );
 }
+
+function QuickStartContent() {
+  return (
+    <>
+      <h2 id="step-1" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Step 1: Install Glance</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        If you haven&apos;t already, <a href="/docs/installation" className="text-indigo hover:underline">install Glance</a> on
+        your system.
+      </p>
+
+      <h2 id="step-2" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Step 2: Launch</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Glance starts automatically on Windows after installation. On Linux, run:
+      </p>
+      <CodeBlock code="glance" language="bash" />
+
+      <h2 id="step-3" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Step 3: Summon</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Press <kbd className="px-2 py-0.5 rounded bg-bg-card text-xs font-mono text-text-primary border border-border-subtle">Ctrl + Alt + M</kbd> to
+        summon Glance. A small cursor buddy will appear on your screen.
+      </p>
+
+      <h2 id="step-4" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Step 4: Speak</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Talk to Glance naturally. Try saying:
+      </p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>&quot;What&apos;s on my screen?&quot;</li>
+        <li>&quot;Click the blue button&quot;</li>
+        <li>&quot;Open my browser settings&quot;</li>
+        <li>&quot;Fill in my email address&quot;</li>
+      </ul>
+
+      <h2 id="step-5" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Step 5: Configure (Optional)</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        By default, Glance works without any LLM provider — it uses its built-in capabilities. To unlock
+        full power, connect an LLM provider in <a href="/docs/configuration" className="text-indigo hover:underline">Settings</a>.
+      </p>
+
+      <Callout type="info" title="No account required">
+        Glance is free and open source. You can use it without creating an account or providing any API keys.
+        API keys are only needed if you want to connect a cloud LLM provider.
+      </Callout>
+    </>
+  );
+}
