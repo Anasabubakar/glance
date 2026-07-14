@@ -142,3 +142,52 @@ function QuickStartContent() {
     </>
   );
 }
+
+function FeaturesContent() {
+  return (
+    <>
+      <h2 id="screen-vision" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Screen Vision</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Glance captures and understands your screen in real-time. It can read text, identify UI elements,
+        recognize images, and understand the context of what you&apos;re working on.
+      </p>
+
+      <h2 id="cursor-buddy" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Cursor Buddy</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Unlike chat-based assistants, Glance appears as a small companion near your cursor. It visually
+        points at exactly what it&apos;s referring to, eliminating any ambiguity.
+      </p>
+
+      <h2 id="action-execution" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Action Execution</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Glance can take real actions on your desktop:
+      </p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Click buttons and links</li>
+        <li>• Type text into fields</li>
+        <li>• Scroll through pages</li>
+        <li>• Navigate between windows</li>
+        <li>• Fill out forms</li>
+        <li>• Copy and paste content</li>
+      </ul>
+
+      <h2 id="voice-first" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Voice-First Interface</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Glance is designed for voice interaction. Speak naturally and it understands context, pronouns
+        (&quot;click that&quot;, &quot;scroll down there&quot;), and multi-step instructions.
+      </p>
+
+      <h2 id="memory" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Memory & Learning</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Glance remembers your preferences, workflows, and past interactions. Over time, it becomes
+        increasingly tailored to how you work.
+      </p>
+
+      <h2 id="privacy" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Privacy</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        All screen processing happens locally on your device. When using cloud LLMs, only the relevant
+        context is sent — never raw screen recordings. With Ollama, everything stays fully offline.
+      </p>
+    </>
+  );
+}
