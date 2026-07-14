@@ -372,3 +372,22 @@ function KeyboardShortcutsContent() {
     </>
   );
 }
+
+function FAQContent() {
+  return (
+    <>
+      {[
+        { q: "Is Glance free?", a: "Yes. Glance is free and open source under the MIT license." },
+        { q: "Does Glance record my screen?", a: "No. Screen captures are processed locally and never stored permanently. When using cloud LLMs, only extracted text/context is sent — never raw screenshots." },
+        { q: "Can I use Glance offline?", a: "Yes. Use Ollama as your LLM provider for fully local, offline operation. Basic screen reading works without any provider." },
+        { q: "Does Glance work on macOS?", a: "Not yet. Glance currently supports Windows and Linux. macOS support is on the roadmap." },
+        { q: "Is my data safe?", a: "Yes. Glance is open source — you can audit every line of code. Screen data stays local. Memory is stored only on your device." },
+      ].map((item) => (
+        <div key={item.q} className="mb-8">
+          <h3 className="text-lg font-semibold mb-2">{item.q}</h3>
+          <p className="text-text-muted leading-relaxed">{item.a}</p>
+        </div>
+      ))}
+    </>
+  );
+}
