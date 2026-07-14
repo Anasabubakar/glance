@@ -281,3 +281,42 @@ function ConfigurationContent() {
     </>
   );
 }
+
+function VoiceCommandsContent() {
+  return (
+    <>
+      <h2 id="basics" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Basic Commands</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Glance understands natural language. You don&apos;t need to memorize specific phrases — just
+        speak naturally.
+      </p>
+      <div className="rounded-xl border border-border-subtle overflow-hidden mb-6">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border-subtle bg-bg-card/30">
+              <th className="text-left px-4 py-3 font-medium text-text-primary">Command</th>
+              <th className="text-left px-4 py-3 font-medium text-text-primary">What it does</th>
+            </tr>
+          </thead>
+          <tbody className="text-text-muted">
+            <tr className="border-b border-border-subtle"><td className="px-4 py-2.5">&quot;What&apos;s on my screen?&quot;</td><td className="px-4 py-2.5">Describes the current screen</td></tr>
+            <tr className="border-b border-border-subtle"><td className="px-4 py-2.5">&quot;Click the submit button&quot;</td><td className="px-4 py-2.5">Finds and clicks the button</td></tr>
+            <tr className="border-b border-border-subtle"><td className="px-4 py-2.5">&quot;Type my email&quot;</td><td className="px-4 py-2.5">Types your saved email</td></tr>
+            <tr className="border-b border-border-subtle"><td className="px-4 py-2.5">&quot;Scroll down&quot;</td><td className="px-4 py-2.5">Scrolls the active window</td></tr>
+            <tr><td className="px-4 py-2.5">&quot;Go back&quot;</td><td className="px-4 py-2.5">Navigates to the previous page</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="contextual" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Contextual Commands</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Glance understands context and pronouns:
+      </p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• &quot;Click <strong className="text-text-primary">that</strong>&quot; — clicks the element Glance is pointing at</li>
+        <li>• &quot;Read <strong className="text-text-primary">this</strong>&quot; — reads the content under focus</li>
+        <li>• &quot;Move <strong className="text-text-primary">there</strong>&quot; — moves to where you gesture</li>
+      </ul>
+    </>
+  );
+}
