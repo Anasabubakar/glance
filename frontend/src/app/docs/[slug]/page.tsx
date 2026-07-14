@@ -444,3 +444,31 @@ function ChangelogContent() {
     </>
   );
 }
+
+function RoadmapContent() {
+  return (
+    <>
+      <h2 id="in-progress" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">In Progress</h2>
+      <ul className="space-y-2 text-text-muted mb-8">
+        <li>• Multi-monitor support</li>
+        <li>• Plugin system for custom actions</li>
+        <li>• Improved voice recognition accuracy</li>
+      </ul>
+
+      <h2 id="planned" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Planned</h2>
+      <ul className="space-y-2 text-text-muted mb-8">
+        <li>• macOS support</li>
+        <li>• Workflow automation (record and replay)</li>
+        <li>• Browser extension</li>
+        <li>• Mobile companion app</li>
+      </ul>
+
+      <h2 id="exploring" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Exploring</h2>
+      <ul className="space-y-2 text-text-muted mb-8">
+        <li>• AR/VR support</li>
+        <li>• Team collaboration features</li>
+        <li>• API for developers</li>
+      </ul>
+    </>
+  );
+}
