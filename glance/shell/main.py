@@ -60,11 +60,14 @@ def _copilot_login_flow(tray, panel, manager):
     threading.Thread(target=_worker, daemon=True).start()
 
 
-def main():
+def main(launcher_window=None):
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
-    app = QApplication(sys.argv)
+    app = QApplication.instance()
+    _owns_app = app is None
+    if _owns_app:
+        app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("Glance")
     app.setApplicationDisplayName("Glance - AI Companion")
@@ -360,6 +363,11 @@ def main():
             tray.hide()  # remove the tray icon immediately for visual feedback
         except Exception:
             pass
+        if launcher_window is not None:
+            try:
+                launcher_window.close()
+            except Exception:
+                pass
         app.quit()
         # Safety net: even after app.quit(), some third-party threads
         # (pynput, sounddevice PortAudio callback, faster-whisper CT2) can
@@ -368,6 +376,11 @@ def main():
         QTimer.singleShot(500, lambda: os._exit(0))
 
     tray.on_quit.connect(_quit_glance)
+
+    # ── Dashboard integration ────────────────────────────────────────────────
+    if launcher_window is not None:
+        tray.add_dashboard_action(launcher_window.show_dashboard)
+        launcher_window.set_companion_running(True)
 
     # ── Show UI + start listener ──────────────────────────────────────────────
     overlay.show()        # persistent overlay (cursor follow)
@@ -383,22 +396,27 @@ def main():
     # ── First-run setup wizard ────────────────────────────────────────────────
     # Show the Ollama install / model pull walkthrough on the first launch.
     # If everything is already wired up, the helper is a no-op.
-    try:
-        from ui.setup_wizard import maybe_show_setup_wizard, SetupWizard
+    # Skip when launched from the dashboard (it supersedes the wizard).
+    if launcher_window is None:
+        try:
+            from ui.setup_wizard import maybe_show_setup_wizard, SetupWizard
 
-        # Force-show via env var (handy for testing).
-        if os.environ.get("GLANCE_FORCE_SETUP", "").strip() in ("1", "true", "yes"):
-            wiz = SetupWizard()
-            wiz.show()
-            _setup_keepalive[0] = wiz
-        else:
-            wiz = maybe_show_setup_wizard()
-            if wiz is not None:
-                _setup_keepalive[0] = wiz   # keep a reference so it isn't GC'd
-    except Exception as e:
-        print(f"[setup-wizard] skipped: {e}")
+            # Force-show via env var (handy for testing).
+            if os.environ.get("GLANCE_FORCE_SETUP", "").strip() in ("1", "true", "yes"):
+                wiz = SetupWizard()
+                wiz.show()
+                _setup_keepalive[0] = wiz
+            else:
+                wiz = maybe_show_setup_wizard()
+                if wiz is not None:
+                    _setup_keepalive[0] = wiz   # keep a reference so it isn't GC'd
+        except Exception as e:
+            print(f"[setup-wizard] skipped: {e}")
 
-    sys.exit(app.exec())
+    # When launched from the dashboard, the event loop is already running —
+    # don't call app.exec() again (would block or raise).
+    if _owns_app:
+        sys.exit(app.exec())
 
 
 # Module-level slot used to keep a reference to the setup wizard alive while
