@@ -320,3 +320,31 @@ function VoiceCommandsContent() {
     </>
   );
 }
+
+function LLMProvidersContent() {
+  return (
+    <>
+      <h2 id="supported" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Supported Providers</h2>
+
+      {[
+        { name: "Claude (Anthropic)", dot: "#D4A574", config: `"provider": "claude",\n"apiKey": "sk-ant-..."` },
+        { name: "OpenAI", dot: "#10A37F", config: `"provider": "openai",\n"apiKey": "sk-..."` },
+        { name: "Google Gemini", dot: "#4285F4", config: `"provider": "gemini",\n"apiKey": "AI..."` },
+        { name: "Ollama (Local)", dot: "#FFFFFF", config: `"provider": "ollama",\n"baseUrl": "http://localhost:11434"` },
+      ].map((p) => (
+        <div key={p.name} className="mb-8">
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.dot }} />
+            {p.name}
+          </h3>
+          <CodeBlock code={`{\n  ${p.config}\n}`} language="json" filename="config.json" />
+        </div>
+      ))}
+
+      <Callout type="info" title="No provider needed">
+        Glance works without any LLM provider for basic screen reading and pointing. Providers
+        unlock advanced reasoning and action capabilities.
+      </Callout>
+    </>
+  );
+}
