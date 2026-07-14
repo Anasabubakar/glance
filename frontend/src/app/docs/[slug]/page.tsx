@@ -348,3 +348,27 @@ function LLMProvidersContent() {
     </>
   );
 }
+
+function KeyboardShortcutsContent() {
+  return (
+    <>
+      <h2 id="global" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Global Shortcuts</h2>
+      <div className="rounded-xl border border-border-subtle overflow-hidden mb-6">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border-subtle bg-bg-card/30">
+              <th className="text-left px-4 py-3 font-medium text-text-primary">Shortcut</th>
+              <th className="text-left px-4 py-3 font-medium text-text-primary">Action</th>
+            </tr>
+          </thead>
+          <tbody className="text-text-muted">
+            <tr className="border-b border-border-subtle"><td className="px-4 py-2.5"><kbd className="px-1.5 py-0.5 rounded bg-bg-card text-xs font-mono border border-border-subtle">Ctrl+Alt+M</kbd></td><td className="px-4 py-2.5">Summon/dismiss Glance</td></tr>
+            <tr className="border-b border-border-subtle"><td className="px-4 py-2.5"><kbd className="px-1.5 py-0.5 rounded bg-bg-card text-xs font-mono border border-border-subtle">Ctrl+Alt+V</kbd></td><td className="px-4 py-2.5">Toggle voice input</td></tr>
+            <tr className="border-b border-border-subtle"><td className="px-4 py-2.5"><kbd className="px-1.5 py-0.5 rounded bg-bg-card text-xs font-mono border border-border-subtle">Ctrl+Alt+S</kbd></td><td className="px-4 py-2.5">Take screenshot for context</td></tr>
+            <tr><td className="px-4 py-2.5"><kbd className="px-1.5 py-0.5 rounded bg-bg-card text-xs font-mono border border-border-subtle">Esc</kbd></td><td className="px-4 py-2.5">Dismiss Glance</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
