@@ -86,6 +86,8 @@ class TrayManager(QObject):
         # Ollama model state — populated by manager via set_ollama_models()
         self._ollama_installed: dict[str, list[str]] = {"vision": [], "text": []}
 
+        self._dashboard_callback = None
+
         self._build_menu()
         self._tray.activated.connect(self._on_activated)
         self._tray.show()
@@ -111,6 +113,10 @@ class TrayManager(QObject):
 
         hide_action = menu.addAction("Hide Panel")
         hide_action.triggered.connect(self.on_hide_panel)
+
+        if self._dashboard_callback is not None:
+            dash_action = menu.addAction("Show Dashboard")
+            dash_action.triggered.connect(self._dashboard_callback)
 
         stop_action = menu.addAction("Stop (Esc)")
         stop_action.triggered.connect(self.on_stop)
@@ -456,6 +462,12 @@ class TrayManager(QObject):
     def rebuild_menu(self):
         """Rebuild so the Model submenu reflects the newly-active provider."""
         self._build_menu()
+
+    def add_dashboard_action(self, callback):
+        """Register a callback for the 'Show Dashboard' tray menu item.
+        Triggers a menu rebuild so the action appears immediately."""
+        self._dashboard_callback = callback
+        self.rebuild_menu()
 
     def show_notification(self, title: str, message: str):
         self._tray.showMessage(
