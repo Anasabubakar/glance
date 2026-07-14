@@ -1,41 +1,66 @@
 @import "tailwindcss";
 
-:root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 9, 9, 11;
-  --background-end-rgb: 0, 0, 0;
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@theme {
+  --color-bg-deep: #050510;
+  --color-bg-surface: #0F0F17;
+  --color-bg-card: #14141F;
+  --color-bg-elevated: #1A1A2E;
+
+  --color-indigo: #646BF2;
+  --color-violet: #8C7AFA;
+  --color-blue-glow: #598CFF;
+  --color-green: #4ADE80;
+  --color-orange: #FB923C;
+
+  --color-text-primary: #FFFFFF;
+  --color-text-muted: #737385;
+  --color-text-dim: #52525B;
+
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-medium: rgba(255, 255, 255, 0.1);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-grotesk: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-start-rgb));
-  font-family: 'Geist', sans-serif;
+  color: var(--color-text-primary);
+  background: var(--color-bg-deep);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+::selection {
+  background: rgba(100, 107, 242, 0.4);
+  color: #fff;
+}
+
 @layer base {
   h1, h2, h3, h4, h5, h6 {
-    @apply tracking-tighter;
+    @apply tracking-tight;
   }
-}
 
-:root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 9, 9, 11;
-  --background-end-rgb: 0, 0, 0;
-}
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-indigo rounded-sm;
+  }
 
-body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-start-rgb));
-  font-family: 'Geist', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-@layer base {
-  h1, h2, h3, h4, h5, h6 {
-    @apply tracking-tighter;
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
