@@ -391,3 +391,37 @@ function FAQContent() {
     </>
   );
 }
+
+function TroubleshootingContent() {
+  return (
+    <>
+      <h2 id="common" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Common Issues</h2>
+
+      <h3 className="text-lg font-semibold mt-8 mb-3">Glance doesn&apos;t appear when I press the hotkey</h3>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Make sure Glance is running in the system tray</li>
+        <li>• Check that no other app is using the same hotkey</li>
+        <li>• Try running Glance as administrator (Windows)</li>
+      </ul>
+
+      <h3 className="text-lg font-semibold mt-8 mb-3">Voice input isn&apos;t working</h3>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Check microphone permissions in your OS settings</li>
+        <li>• Make sure voice is enabled in Glance settings</li>
+        <li>• Try selecting a different microphone device</li>
+      </ul>
+
+      <h3 className="text-lg font-semibold mt-8 mb-3">Screen capture is blank</h3>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• On Linux, ensure screen capture permissions are granted</li>
+        <li>• Wayland users may need to grant additional permissions</li>
+        <li>• Try restarting Glance</li>
+      </ul>
+
+      <Callout type="warning" title="Still stuck?">
+        Open an issue on <a href="https://github.com/Anasabubakar/glance/issues" target="_blank" rel="noopener noreferrer" className="text-indigo hover:underline">GitHub</a> with
+        your OS version and Glance version.
+      </Callout>
+    </>
+  );
+}
