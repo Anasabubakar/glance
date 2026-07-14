@@ -472,3 +472,39 @@ function RoadmapContent() {
     </>
   );
 }
+
+function ContributingContent() {
+  return (
+    <>
+      <h2 id="getting-started" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Getting Started</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Glance is open source and welcomes contributions. Here&apos;s how to get set up:
+      </p>
+      <CodeBlock
+        code={`# Clone the repo\ngit clone https://github.com/Anasabubakar/glance.git\ncd Glance\n\n# Install dependencies\nnpm install\n\n# Start development\nnpm run dev`}
+        language="bash"
+        filename="terminal"
+      />
+
+      <h2 id="guidelines" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Guidelines</h2>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Follow the existing code style</li>
+        <li>• Write meaningful commit messages</li>
+        <li>• Add tests for new features</li>
+        <li>• Update documentation when changing behavior</li>
+        <li>• Be respectful in discussions</li>
+      </ul>
+
+      <h2 id="issues" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">Reporting Issues</h2>
+      <p className="text-text-muted leading-relaxed mb-4">
+        Found a bug? Open an issue on <a href="https://github.com/Anasabubakar/glance/issues" target="_blank" rel="noopener noreferrer" className="text-indigo hover:underline">GitHub</a> with:
+      </p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Your OS and version</li>
+        <li>• Glance version</li>
+        <li>• Steps to reproduce</li>
+        <li>• Expected vs actual behavior</li>
+      </ul>
+    </>
+  );
+}
