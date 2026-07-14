@@ -425,3 +425,22 @@ function TroubleshootingContent() {
     </>
   );
 }
+
+function ChangelogContent() {
+  return (
+    <>
+      <h2 id="v0-1-0" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.1.0 — Initial Release</h2>
+      <p className="text-text-dim text-sm mb-4">July 2025</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Initial public release</li>
+        <li>• Real-time screen vision</li>
+        <li>• Cursor buddy companion</li>
+        <li>• Action execution (click, type, scroll)</li>
+        <li>• Voice-first interface</li>
+        <li>• Multi-LLM support (Claude, OpenAI, Gemini, Ollama)</li>
+        <li>• Windows + Linux support</li>
+        <li>• MIT License</li>
+      </ul>
+    </>
+  );
+}
