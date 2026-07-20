@@ -1,13 +1,16 @@
-"""API Keys page — per-provider key entry, validate, save, remove."""
+"""
+API Keys page — per-provider key entry with validation, save/remove.
+"""
 
 import threading
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QMessageBox,
 )
 from PyQt6.QtCore import pyqtSignal, QObject
 
 from ..page_base import BasePage
-from ..widgets import Card, KeyField, FlatButton, GradientButton, StatusDot
+from ..widgets import Card, KeyField, FlatButton, GradientButton
 from .. import design_tokens as dt
 
 _PROVIDERS = [
@@ -16,7 +19,7 @@ _PROVIDERS = [
     ("GOOGLE_API_KEY",     "Google (Gemini)",       "google_api_key"),
     ("DEEPGRAM_API_KEY",   "Deepgram (STT)",       "deepgram_api_key"),
     ("ELEVENLABS_API_KEY", "ElevenLabs (TTS)",     "elevenlabs_api_key"),
-    ("TAVILY_API_KEY",     "Tavily (Search)",      "tavily_api_key"),
+    ("TAVILY_API_KEY",     "Tavily (Search)",       "tavily_api_key"),
 ]
 
 
@@ -35,18 +38,18 @@ class _Validator(QObject):
             if self.env_key == "ANTHROPIC_API_KEY":
                 r = httpx.post(
                     "https://api.anthropic.com/v1/messages",
-                    headers={"x-api-key": self.value, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                    json={"model": "claude-sonnet-4-20250514", "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]},
+                    headers={"x-api-key": self.value, "anthropic-version": "2023-06-01",
+                             "content-type": "application/json"},
+                    json={"model": "claude-sonnet-4-20250514", "max_tokens": 1,
+                          "messages": [{"role": "user", "content": "hi"}]},
                     timeout=15,
                 )
                 ok = r.status_code in (200, 400, 429)
                 msg = "Valid" if ok else f"HTTP {r.status_code}"
             elif self.env_key == "OPENAI_API_KEY":
-                r = httpx.get(
-                    "https://api.openai.com/v1/models",
-                    headers={"Authorization": f"Bearer {self.value}"},
-                    timeout=15,
-                )
+                r = httpx.get("https://api.openai.com/v1/models",
+                              headers={"Authorization": f"Bearer {self.value}"},
+                              timeout=15)
                 ok = r.status_code == 200
                 msg = "Valid" if ok else f"HTTP {r.status_code}"
             elif self.env_key == "GOOGLE_API_KEY":
@@ -58,27 +61,21 @@ class _Validator(QObject):
                 ok = r.status_code in (200, 400, 429)
                 msg = "Valid" if ok else f"HTTP {r.status_code}"
             elif self.env_key == "DEEPGRAM_API_KEY":
-                r = httpx.get(
-                    "https://api.deepgram.com/v1/projects",
-                    headers={"Authorization": f"Token {self.value}"},
-                    timeout=15,
-                )
+                r = httpx.get("https://api.deepgram.com/v1/projects",
+                              headers={"Authorization": f"Token {self.value}"},
+                              timeout=15)
                 ok = r.status_code == 200
                 msg = "Valid" if ok else f"HTTP {r.status_code}"
             elif self.env_key == "ELEVENLABS_API_KEY":
-                r = httpx.get(
-                    "https://api.elevenlabs.io/v1/voices",
-                    headers={"xi-api-key": self.value},
-                    timeout=15,
-                )
+                r = httpx.get("https://api.elevenlabs.io/v1/voices",
+                              headers={"xi-api-key": self.value},
+                              timeout=15)
                 ok = r.status_code == 200
                 msg = "Valid" if ok else f"HTTP {r.status_code}"
             elif self.env_key == "TAVILY_API_KEY":
-                r = httpx.post(
-                    "https://api.tavily.com/search",
-                    json={"api_key": self.value, "query": "test", "max_results": 1},
-                    timeout=15,
-                )
+                r = httpx.post("https://api.tavily.com/search",
+                               json={"api_key": self.value, "query": "test", "max_results": 1},
+                               timeout=15)
                 ok = r.status_code == 200
                 msg = "Valid" if ok else f"HTTP {r.status_code}"
         except Exception as e:
@@ -88,12 +85,13 @@ class _Validator(QObject):
 
 class APIKeysPage(BasePage):
     title = "API Keys"
-    icon = "\U0001F511"
-    subtitle = "Manage your API keys for each provider. Keys are stored in your local .env file."
+    icon = "🔑"
+    subtitle = "Manage API keys for each provider. Keys are stored in your local .env file."
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._fields: dict[str, KeyField] = {}
+        self._status_labels: dict[str, QLabel] = {}
         self._validators: list = []
 
         try:
@@ -122,7 +120,6 @@ class APIKeysPage(BasePage):
             btn_row.addWidget(remove_btn)
 
             btn_row.addStretch()
-            self._status_labels = {}
             status = QLabel("")
             status.setFont(dt.FONT_CAPTION)
             self._status_labels[env_key] = status
@@ -151,7 +148,7 @@ class APIKeysPage(BasePage):
         value = field.get_key()
         self._cfg.save_env_values({env_key: value})
         field.set_status(bool(value))
-        self._set_status(env_key, "Saved", dt.SUCCESS)
+        self._set_status(env_key, "✓ Saved", dt.SUCCESS)
 
     def _test_key(self, env_key: str):
         field = self._fields.get(env_key)

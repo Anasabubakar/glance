@@ -1,6 +1,9 @@
-"""Logs page — session.log viewer with category filter, search, export."""
+"""
+Logs page — session.log viewer with category filter, search, export.
+"""
 
 from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
     QComboBox, QLineEdit, QFileDialog, QMessageBox,
@@ -8,7 +11,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from ..page_base import BasePage
-from ..widgets import Card, FlatButton, DangerButton
+from ..widgets import Card, FlatButton, DangerButton, SearchField
 from .. import design_tokens as dt
 
 _CATEGORIES = ["ALL", "HEAR", "ROUTE", "THINK", "SAY", "POINT", "SNAP", "ACT", "TTS"]
@@ -17,13 +20,13 @@ _LOG_PATH = Path.home() / ".glance" / "logs" / "session.log"
 
 class LogsPage(BasePage):
     title = "Logs"
-    icon = "\U0001F4C4"
+    icon = "📄"
     subtitle = "View, filter, and export session logs."
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # Controls row
+        # Controls
         ctrl = QHBoxLayout()
         self._category = QComboBox()
         for cat in _CATEGORIES:
@@ -33,7 +36,8 @@ class LogsPage(BasePage):
                 background: {dt.BG_ELEVATED.name()};
                 color: {dt.TEXT_PRIMARY.name()};
                 border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 6px; padding: 6px 10px;
+                border-radius: {dt.INPUT_RADIUS}px;
+                padding: 6px 10px;
             }}
             QComboBox::drop-down {{ border: none; }}
             QComboBox QAbstractItemView {{
@@ -42,19 +46,16 @@ class LogsPage(BasePage):
             }}
         """)
         self._category.currentTextChanged.connect(lambda _: self._apply_filter())
-        ctrl.addWidget(QLabel("Category:"))
+        cat_lbl = QLabel("Category:")
+        cat_lbl.setFont(dt.FONT_BODY)
+        cat_lbl.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()};")
+        ctrl.addWidget(cat_lbl)
         ctrl.addWidget(self._category)
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search…")
-        self._search.setStyleSheet(f"""
-            QLineEdit {{
-                background: {dt.BG_ELEVATED.name()};
-                color: {dt.TEXT_PRIMARY.name()};
-                border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 6px; padding: 6px 10px;
-            }}
-        """)
+        self._search.setPlaceholderText("Search logs…")
+        self._search.setStyleSheet(dt.LINEEDIT_QSS)
+        self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(lambda _: self._apply_filter())
         ctrl.addWidget(self._search, 1)
 
@@ -68,20 +69,12 @@ class LogsPage(BasePage):
 
         self.body_layout.addLayout(ctrl)
 
-        # Log viewer
+        # Viewer
         self._viewer = QTextEdit()
         self._viewer.setReadOnly(True)
         self._viewer.setFont(dt.FONT_MONO)
-        self._viewer.setStyleSheet(f"""
-            QTextEdit {{
-                background: {dt.BG_CARD.name()};
-                color: {dt.TEXT_MUTED.name()};
-                border: 1px solid rgba(255,255,255,0.06);
-                border-radius: {dt.CARD_RADIUS}px;
-                padding: 10px;
-            }}
-        """)
-        self._viewer.setMinimumHeight(300)
+        self._viewer.setStyleSheet(dt.TEXTEDIT_QSS)
+        self._viewer.setMinimumHeight(350)
         self.body_layout.addWidget(self._viewer, 1)
 
         self._all_lines: list[str] = []
@@ -109,7 +102,8 @@ class LogsPage(BasePage):
 
         self._viewer.setPlainText("\n".join(lines[-500:]))
         sb = self._viewer.verticalScrollBar()
-        sb.setValue(sb.maximum())
+        if sb:
+            sb.setValue(sb.maximum())
 
     def _export(self):
         path, _ = QFileDialog.getSaveFileName(

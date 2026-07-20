@@ -1,11 +1,14 @@
-"""Advanced page — env editor, debug toggle, reset, data directory."""
+"""
+Advanced page — env editor, debug toggle, reset, data directory.
+"""
 
 import sys
 import os
 import subprocess
 from pathlib import Path
+
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
 )
 from PyQt6.QtCore import Qt
@@ -29,17 +32,17 @@ _KNOWN_KEYS = [
 def _user_dir() -> Path:
     if sys.platform == "win32":
         return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Glance"
-    return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "Glance"
+    return Path(os.environ.get("XDG_DATA_HOME",
+                                Path.home() / ".local" / "share")) / "Glance"
 
 
 class AdvancedPage(BasePage):
     title = "Advanced"
-    icon = "\U0001F527"
+    icon = "⚡"
     subtitle = "Environment variables, debug settings, and reset options."
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
         try:
             from config import cfg
             self._cfg = cfg
@@ -49,7 +52,11 @@ class AdvancedPage(BasePage):
         # Debug toggle
         self.body_layout.addWidget(self.section_label("Debug"))
         debug_on = os.environ.get("GLANCE_DEBUG", "0").strip() in ("1", "true")
-        self._debug_row = SettingRow("Debug Logging", "Enable verbose debug output", checked=debug_on)
+        self._debug_row = SettingRow(
+            "Debug Logging",
+            "Enable verbose debug output",
+            checked=debug_on,
+        )
         self._debug_row.toggled.connect(self._toggle_debug)
         self.body_layout.addWidget(self._debug_row)
 
@@ -59,14 +66,16 @@ class AdvancedPage(BasePage):
         self._dir_label = QLabel(str(_user_dir()))
         self._dir_label.setFont(dt.FONT_MONO)
         self._dir_label.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
-        self._dir_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._dir_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
         dir_card.add_widget(self._dir_label)
         open_btn = FlatButton("Open in File Manager")
         open_btn.clicked.connect(self._open_data_dir)
         dir_card.add_widget(open_btn)
         self.body_layout.addWidget(dir_card)
 
-        # Environment variable editor
+        # Environment variables editor
         self.body_layout.addWidget(self.section_label("Environment Variables"))
         self.body_layout.addWidget(self.hint_label(
             "Edit Glance environment variables. Changes are saved to your .env file."
@@ -74,8 +83,12 @@ class AdvancedPage(BasePage):
 
         self._table = QTableWidget(len(_KNOWN_KEYS), 2)
         self._table.setHorizontalHeaderLabels(["Variable", "Value"])
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self._table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
         self._table.verticalHeader().setVisible(False)
         self._table.setStyleSheet(f"""
             QTableWidget {{
@@ -87,6 +100,7 @@ class AdvancedPage(BasePage):
             }}
             QTableWidget::item {{
                 padding: 4px 8px;
+                font-size: 12px;
             }}
             QHeaderView::section {{
                 background: {dt.BG_ELEVATED.name()};
@@ -110,9 +124,9 @@ class AdvancedPage(BasePage):
         reset_btn.clicked.connect(self._reset)
         self.body_layout.addWidget(reset_btn)
         self.body_layout.addWidget(self.hint_label(
-            "Clears your .env file and removes the setup-complete flag. Cannot be undone."
+            "Clears your .env file and removes the setup-complete flag. "
+            "Cannot be undone."
         ))
-
         self.body_layout.addStretch()
 
     def on_activate(self):
@@ -169,7 +183,10 @@ class AdvancedPage(BasePage):
             if sys.platform == "win32":
                 env_path = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Glance" / ".env"
             else:
-                env_path = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "Glance" / ".env"
+                env_path = Path(
+                    os.environ.get("XDG_DATA_HOME",
+                                   Path.home() / ".local" / "share")
+                ) / "Glance" / ".env"
             if not frozen:
                 shell_dir = Path(__file__).parents[3]
                 env_path = shell_dir / ".env"
@@ -178,6 +195,7 @@ class AdvancedPage(BasePage):
             setup_flag = _user_dir() / ".setup_complete"
             if setup_flag.exists():
                 setup_flag.unlink()
-            QMessageBox.information(self, "Reset Complete", "Glance has been reset. Restart to apply.")
+            QMessageBox.information(self, "Reset Complete",
+                                    "Glance has been reset. Restart to apply.")
         except Exception as e:
             QMessageBox.warning(self, "Error", str(e))

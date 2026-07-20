@@ -90,6 +90,16 @@ build.bat installer
   reporting "false positive" should be pointed at
   <https://github.com/pyinstaller/pyinstaller/issues/6754>.
 
+## v0.2.0 — Launcher Dashboard
+
+Glance now includes a Desktop Launcher Dashboard (`glance/shell/ui/launcher/`)
+that opens before the companion. When building a release:
+
+- The launcher is included automatically via the existing spec files
+- The entry point in `packaging/glance_app.py` calls `glance.companion.launch()`
+  which shows the dashboard before the companion shell
+- Set `GLANCE_NO_LAUNCHER=1` to skip the dashboard and launch directly
+
 ## Troubleshooting
 
 If PyInstaller fails on Windows:

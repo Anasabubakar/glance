@@ -1,13 +1,16 @@
-"""AI Providers page — provider priority, active switching, endpoint config."""
+"""
+AI Providers page — provider priority, active switching, endpoint config.
+"""
 
 import threading
+
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
 from PyQt6.QtCore import pyqtSignal, QObject
 
 from ..page_base import BasePage
-from ..widgets import Card, FlatButton, GradientButton, StatusDot
+from ..widgets import Card, FlatButton, StatusDot, PillBadge
 from .. import design_tokens as dt
 
 
@@ -49,8 +52,8 @@ class ProvidersPage(BasePage):
 
         self.body_layout.addWidget(self.section_label("Provider Priority"))
         self.body_layout.addWidget(self.hint_label(
-            "Glance tries providers in order: Claude → OpenAI → GitHub Copilot → Gemini → Ollama. "
-            "The first one with a valid key becomes active."
+            "Glance tries providers in order: Claude → OpenAI → GitHub Copilot → "
+            "Gemini → Ollama. The first one with a valid key becomes active."
         ))
 
         providers = [
@@ -64,7 +67,6 @@ class ProvidersPage(BasePage):
         for key, name, desc in providers:
             card = Card()
             row = QHBoxLayout()
-
             dot = StatusDot(dt.TEXT_DIM)
             row.addWidget(dot)
 
@@ -74,6 +76,7 @@ class ProvidersPage(BasePage):
             lbl.setFont(dt.font(14, dt.QFont.Weight.DemiBold))
             lbl.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()};")
             info.addWidget(lbl)
+
             d = QLabel(desc)
             d.setFont(dt.FONT_CAPTION)
             d.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
@@ -82,17 +85,17 @@ class ProvidersPage(BasePage):
 
             status_lbl = QLabel("")
             status_lbl.setFont(dt.FONT_CAPTION)
-            status_lbl.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
             row.addWidget(status_lbl)
 
             switch_btn = FlatButton("Activate")
             switch_btn.setFixedWidth(90)
-            switch_btn.clicked.connect(lambda _c=False, k=key: self._switch_provider(k))
+            switch_btn.clicked.connect(
+                lambda _c=False, k=key: self._switch_provider(k)
+            )
             row.addWidget(switch_btn)
 
             card.add_layout(row)
             self.body_layout.addWidget(card)
-
             self._provider_widgets[key] = {
                 "dot": dot,
                 "status": status_lbl,
@@ -114,27 +117,32 @@ class ProvidersPage(BasePage):
 
         for key, widgets in self._provider_widgets.items():
             is_available = key in available
-            is_active = (key == active)
-
+            is_active = key == active
             if key == "ollama":
                 is_available = ollama_running
 
             if is_active:
                 widgets["dot"].set_color(dt.SUCCESS)
                 widgets["status"].setText("Active")
-                widgets["status"].setStyleSheet(f"color: {dt.SUCCESS.name()};")
+                widgets["status"].setStyleSheet(
+                    f"color: {dt.SUCCESS.name()}; font-weight: bold;"
+                )
                 widgets["btn"].setText("Active")
                 widgets["btn"].setEnabled(False)
             elif is_available:
                 widgets["dot"].set_color(dt.BRAND_INDIGO)
                 widgets["status"].setText("Available")
-                widgets["status"].setStyleSheet(f"color: {dt.BRAND_INDIGO.name()};")
+                widgets["status"].setStyleSheet(
+                    f"color: {dt.BRAND_INDIGO.name()};"
+                )
                 widgets["btn"].setText("Activate")
                 widgets["btn"].setEnabled(True)
             else:
                 widgets["dot"].set_color(dt.TEXT_DIM)
                 widgets["status"].setText("No key")
-                widgets["status"].setStyleSheet(f"color: {dt.TEXT_DIM.name()};")
+                widgets["status"].setStyleSheet(
+                    f"color: {dt.TEXT_DIM.name()};"
+                )
                 widgets["btn"].setText("Activate")
                 widgets["btn"].setEnabled(False)
 

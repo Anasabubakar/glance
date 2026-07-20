@@ -1,23 +1,40 @@
-"""LauncherWindow — the main dashboard window with sidebar + stacked pages."""
+"""
+window.py — Premium LauncherWindow with fade-in, window icon, keyboard navigation.
+"""
+
+from __future__ import annotations
+
+import os
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QStackedWidget,
     QGraphicsOpacityEffect,
 )
-from PyQt6.QtCore import Qt, QSettings, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, QSettings, QPropertyAnimation, QEasingCurve, QTimer
+from PyQt6.QtGui import QIcon
 
 from . import design_tokens as dt
 from .sidebar import Sidebar
 
 
 class LauncherWindow(QMainWindow):
+    """The main dashboard — sidebar navigation + stacked content pages."""
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Glance — Dashboard")
         self.setMinimumSize(960, 640)
+        self.resize(1100, 720)
         self._companion_running = False
         self._fade_anim = None
+        self._enter_anim = None
 
+        # ── Window icon ──────────────────────────────────────────────────
+        icon = dt.load_icon("glance-flat.png")
+        if not icon.isNull():
+            self.setWindowIcon(icon)
+
+        # ── Base stylesheet ──────────────────────────────────────────────
         self.setStyleSheet(f"""
             QMainWindow {{
                 background: {dt.BG_DEEP.name()};
@@ -37,32 +54,35 @@ class LauncherWindow(QMainWindow):
             }}
         """)
 
+        # ── Central widget ───────────────────────────────────────────────
         central = QWidget()
         self.setCentralWidget(central)
         layout = QHBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        # Sidebar
         self._sidebar = Sidebar()
         self._sidebar.page_selected.connect(self._navigate)
         layout.addWidget(self._sidebar)
 
+        # Content stack
         self._stack = QStackedWidget()
         self._stack.setStyleSheet(f"background: {dt.BG_DEEP.name()};")
         layout.addWidget(self._stack, 1)
 
+        # ── Register pages ───────────────────────────────────────────────
         self._pages: dict[str, QWidget] = {}
         self._page_keys: list[str] = []
         self._register_pages()
 
-        # Restore geometry
+        # ── Restore geometry ────────────────────────────────────────────
         settings = QSettings("Glance", "Launcher")
         geo = settings.value("geometry")
         if geo:
             self.restoreGeometry(geo)
 
-        # Navigate to home (or last page)
-        import os
+        # ── Navigate to last page ────────────────────────────────────────
         last = os.environ.get("GLANCE_LAST_PAGE", "home").strip()
         if last not in self._pages:
             last = "home"
@@ -115,11 +135,14 @@ class LauncherWindow(QMainWindow):
         page = self._pages.get(key)
         if not page:
             return
+
+        # If already on this page, just re-activate
         if self._stack.currentWidget() is page:
             if hasattr(page, "on_activate"):
                 page.on_activate()
             return
 
+        # Fade-in transition
         effect = QGraphicsOpacityEffect(page)
         page.setGraphicsEffect(effect)
         self._fade_anim = QPropertyAnimation(effect, b"opacity")
@@ -135,20 +158,22 @@ class LauncherWindow(QMainWindow):
 
         if hasattr(page, "on_activate"):
             page.on_activate()
+
+        # Persist last page
         try:
             from config import cfg
             cfg._persist_env("GLANCE_LAST_PAGE", key)
         except Exception:
             pass
 
+    # ── Companion lifecycle ─────────────────────────────────────────────────
+
     def start_companion(self):
-        """Called when the user clicks 'Start Glance' — launches the companion
-        inside the same QApplication and hides the launcher."""
+        """Launch the companion and hide the dashboard."""
         if self._companion_running:
             return
         self._companion_running = True
 
-        # Update home page button state
         home = self._pages.get("home")
         if home and hasattr(home, "set_companion_running"):
             home.set_companion_running(True)
@@ -159,7 +184,7 @@ class LauncherWindow(QMainWindow):
         shell_main.main(launcher_window=self)
 
     def show_dashboard(self):
-        """Reopens the launcher from the tray."""
+        """Reopen the launcher from the tray."""
         self.show()
         self.raise_()
         self.activateWindow()
@@ -167,10 +192,24 @@ class LauncherWindow(QMainWindow):
         if hasattr(current, "on_activate"):
             current.on_activate()
 
+    def set_companion_running(self, running: bool):
+        self._companion_running = running
+        home = self._pages.get("home")
+        if home and hasattr(home, "set_companion_running"):
+            home.set_companion_running(running)
+
+    # ── Window events ──────────────────────────────────────────────────────
+
     def showEvent(self, event):
         super().showEvent(event)
-        # Window opacity is unsupported by several Qt Linux backends.  Page
-        # transitions provide the visual feedback without compositor warnings.
+        # Entry fade animation
+        if self.windowOpacity() < 0.99:
+            self._enter_anim = QPropertyAnimation(self, b"windowOpacity")
+            self._enter_anim.setDuration(200)
+            self._enter_anim.setStartValue(0.0)
+            self._enter_anim.setEndValue(1.0)
+            self._enter_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._enter_anim.start()
 
     def closeEvent(self, event):
         settings = QSettings("Glance", "Launcher")
@@ -181,11 +220,7 @@ class LauncherWindow(QMainWindow):
         else:
             event.accept()
 
-    def set_companion_running(self, running: bool):
-        self._companion_running = running
-        home = self._pages.get("home")
-        if home and hasattr(home, "set_companion_running"):
-            home.set_companion_running(running)
+    # ── Keyboard navigation ────────────────────────────────────────────────
 
     def keyPressEvent(self, event):
         key = event.key()

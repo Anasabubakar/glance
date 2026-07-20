@@ -1,7 +1,10 @@
-"""Workspace page — Google Workspace status and configuration."""
+"""
+Workspace page — Google Workspace integration status.
+"""
 
 import os
-from PyQt6.QtWidgets import QLabel, QVBoxLayout
+
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout
 
 from ..page_base import BasePage
 from ..widgets import Card, StatusDot
@@ -10,12 +13,11 @@ from .. import design_tokens as dt
 
 class WorkspacePage(BasePage):
     title = "Workspace"
-    icon = "\U0001F4BC"
+    icon = "💼"
     subtitle = "Google Workspace integration status."
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
         self.body_layout.addWidget(self.section_label("Google Workspace"))
 
         self._gmail_card = Card()
@@ -23,7 +25,6 @@ class WorkspacePage(BasePage):
         self._gmail_label = QLabel("Gmail: checking…")
         self._gmail_label.setFont(dt.FONT_BODY)
         self._gmail_label.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()};")
-        from PyQt6.QtWidgets import QHBoxLayout
         row = QHBoxLayout()
         row.addWidget(self._gmail_status)
         row.addWidget(self._gmail_label)
@@ -47,7 +48,6 @@ class WorkspacePage(BasePage):
             "Google Workspace integration requires OAuth credentials. "
             "Set GOOGLE_CREDENTIALS_FILE in your .env to the path of your credentials.json."
         ))
-
         self.body_layout.addStretch()
 
     def on_activate(self):

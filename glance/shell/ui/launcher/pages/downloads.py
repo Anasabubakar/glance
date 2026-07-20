@@ -1,6 +1,9 @@
-"""Downloads page — Ollama model download tracking."""
+"""
+Downloads page — Ollama model download tracking.
+"""
 
 import threading
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
@@ -21,9 +24,8 @@ class _ModelSizeWorker(QObject):
             if is_ollama_running():
                 raw = list_installed_models()
                 for m in raw:
-                    name = m if isinstance(m, str) else getattr(m, "name", str(m))
-                    size = getattr(m, "size", None)
-                    models.append({"name": name, "size": size})
+                    name = m if isinstance(m, str) else str(m)
+                    models.append({"name": name, "size": None})
         except Exception:
             pass
         self.result.emit(models)
@@ -89,11 +91,5 @@ class DownloadsPage(BasePage):
             name.setFont(dt.font(13, dt.QFont.Weight.DemiBold))
             name.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()};")
             row.addWidget(name, 1)
-            if m.get("size"):
-                size_mb = m["size"] / (1024 * 1024) if isinstance(m["size"], (int, float)) else 0
-                sz = QLabel(f"{size_mb:.0f} MB")
-                sz.setFont(dt.FONT_CAPTION)
-                sz.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
-                row.addWidget(sz)
             card.add_layout(row)
             self._container.addWidget(card)

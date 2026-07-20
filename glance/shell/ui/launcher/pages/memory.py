@@ -1,21 +1,24 @@
-"""Memory page — facts + skills CRUD, import/export."""
+"""
+Memory page — facts + skills CRUD, import/export.
+"""
 
 from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QTextEdit, QFileDialog, QMessageBox,
+    QFileDialog, QMessageBox,
 )
 from PyQt6.QtCore import Qt
 import json
 
 from ..page_base import BasePage
-from ..widgets import Card, FlatButton, DangerButton, GradientButton
+from ..widgets import Card, FlatButton, DangerButton
 from .. import design_tokens as dt
 
 
 class MemoryPage(BasePage):
     title = "Memory"
-    icon = "\U0001F4AD"
+    icon = "💭"
     subtitle = "Manage facts and skills Glance has learned."
 
     def __init__(self, parent=None):
@@ -27,21 +30,12 @@ class MemoryPage(BasePage):
         except Exception:
             pass
 
-        # ── Facts ────────────────────────────────────────────────────
+        # ── Facts ──────────────────────────────────────────────────────
         self.body_layout.addWidget(self.section_label("Facts"))
-
         add_row = QHBoxLayout()
         self._fact_input = QLineEdit()
         self._fact_input.setPlaceholderText("Add a fact…")
-        self._fact_input.setStyleSheet(f"""
-            QLineEdit {{
-                background: {dt.BG_ELEVATED.name()};
-                color: {dt.TEXT_PRIMARY.name()};
-                border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 6px; padding: 8px 10px;
-            }}
-            QLineEdit:focus {{ border-color: {dt.BRAND_INDIGO.name()}; }}
-        """)
+        self._fact_input.setStyleSheet(dt.LINEEDIT_QSS)
         self._fact_input.returnPressed.connect(self._add_fact)
         add_row.addWidget(self._fact_input, 1)
         add_btn = FlatButton("Add")
@@ -53,17 +47,16 @@ class MemoryPage(BasePage):
         self._facts_container.setSpacing(4)
         self.body_layout.addLayout(self._facts_container)
 
-        # ── Skills ───────────────────────────────────────────────────
+        # ── Skills ─────────────────────────────────────────────────────
         self.body_layout.addWidget(self.section_label("Skills"))
-
         skill_add = QHBoxLayout()
         self._skill_name = QLineEdit()
         self._skill_name.setPlaceholderText("Skill name")
-        self._skill_name.setStyleSheet(self._fact_input.styleSheet())
+        self._skill_name.setStyleSheet(dt.LINEEDIT_QSS)
         skill_add.addWidget(self._skill_name)
         self._skill_steps = QLineEdit()
-        self._skill_steps.setPlaceholderText("Steps")
-        self._skill_steps.setStyleSheet(self._fact_input.styleSheet())
+        self._skill_steps.setPlaceholderText("Steps / description")
+        self._skill_steps.setStyleSheet(dt.LINEEDIT_QSS)
         skill_add.addWidget(self._skill_steps, 1)
         skill_btn = FlatButton("Add")
         skill_btn.clicked.connect(self._add_skill)
@@ -74,7 +67,7 @@ class MemoryPage(BasePage):
         self._skills_container.setSpacing(4)
         self.body_layout.addLayout(self._skills_container)
 
-        # ── Import / Export ──────────────────────────────────────────
+        # ── Import / Export ────────────────────────────────────────────
         io_row = QHBoxLayout()
         exp_btn = FlatButton("Export")
         exp_btn.clicked.connect(self._export)
@@ -84,7 +77,6 @@ class MemoryPage(BasePage):
         io_row.addWidget(imp_btn)
         io_row.addStretch()
         self.body_layout.addLayout(io_row)
-
         self.body_layout.addStretch()
 
     def on_activate(self):
@@ -107,7 +99,7 @@ class MemoryPage(BasePage):
             self._facts_container.addWidget(lbl)
             return
 
-        for i, fact in enumerate(self._store.facts):
+        for fact in self._store.facts:
             text = fact.get("text", str(fact)) if isinstance(fact, dict) else str(fact)
             row_w = QWidget()
             row = QHBoxLayout(row_w)

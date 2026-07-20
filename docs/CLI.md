@@ -1,6 +1,6 @@
 # Glance CLI — quickstart
 
-Glance v0.1 is a command-line tool that tidies a folder: it asks an LLM (or a
+Glance v0.2 is a command-line tool that tidies a folder: it asks an LLM (or a
 no-AI heuristic) for a plan, then moves your files into sensible subfolders.
 It runs autonomously, and **everything is undoable**.
 

@@ -8,6 +8,9 @@ to debug when a build fails.
 > build almost never works in one shot — expect to iterate: build, hit a
 > `ModuleNotFoundError` or missing DLL/SO, add it, rebuild. Budget an afternoon.
 > The spec files here are a solid starting point, not a guarantee.
+>
+> **v0.2.0:** Glance now includes a Desktop Launcher Dashboard that opens before
+> the companion. The build specs bundle it automatically — no extra steps needed.
 
 ---
 
@@ -58,9 +61,9 @@ bash packaging/linux/build-linux.sh [portable|appimage|deb|all]
 **Test:**
 ```bash
 ./dist/Glance/glance-companion                 # portable
-sudo dpkg -i dist/glance_0.1.0_amd64.deb       # install .deb
+sudo dpkg -i dist/glance_0.2.0_amd64.deb       # install .deb
 glance-companion                               # launch from PATH
-./dist/Glance-0.1.0-x86_64.AppImage            # standalone AppImage
+./dist/Glance-0.2.0-x86_64.AppImage            # standalone AppImage
 ```
 
 ## Windows
@@ -86,7 +89,7 @@ both platforms in parallel and drafts a GitHub release with all artifacts
 attached:
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 You can also run the workflow on demand:
@@ -175,12 +178,12 @@ Flip `console=False` back on for the release build.
 
 ---
 
-## Artifact sizes (v0.1.0)
+## Artifact sizes (v0.2.0)
 
 | Platform | Artifact | Approx size |
 |---|---|---|
 | Linux | `dist/Glance/` (portable folder) | ~660 MB |
-| Linux | `Glance-0.1.0-x86_64.AppImage` | 295 MB |
-| Linux | `glance_0.1.0_amd64.deb` | 222 MB |
+| Linux | `Glance-0.2.0-x86_64.AppImage` | ~295 MB |
+| Linux | `glance_0.2.0_amd64.deb` | ~222 MB |
 | Windows | `dist/Glance/` (portable folder) | ~500 MB |
 | Windows | `Setup-Glance.exe` (installer) | 200–400 MB |

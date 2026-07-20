@@ -1,13 +1,16 @@
-"""Security page — credential audit, .env file locations, key status."""
+"""
+Security page — credential audit, .env file locations, key status.
+"""
 
 import sys
 import os
+import subprocess
 from pathlib import Path
+
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
 from PyQt6.QtCore import Qt
-import subprocess
 
 from ..page_base import BasePage
 from ..widgets import Card, FlatButton, StatusDot
@@ -25,19 +28,17 @@ _KEYS = [
 
 class SecurityPage(BasePage):
     title = "Security"
-    icon = "\U0001F512"
+    icon = "🔒"
     subtitle = "Credential inventory and .env file locations."
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
         try:
             from config import cfg
             self._cfg = cfg
         except Exception:
             self._cfg = None
 
-        # Credential audit
         self.body_layout.addWidget(self.section_label("Credential Inventory"))
         self._key_widgets: dict[str, tuple[StatusDot, QLabel]] = {}
 
@@ -57,16 +58,15 @@ class SecurityPage(BasePage):
             self.body_layout.addWidget(card)
             self._key_widgets[attr] = (dot, status)
 
-        # .env locations
         self.body_layout.addWidget(self.section_label("Storage Locations"))
         loc_card = Card()
-
         frozen = getattr(sys, "frozen", False)
         here = Path(__file__).parent
         if sys.platform == "win32":
             user_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Glance"
         else:
-            user_dir = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "Glance"
+            user_dir = Path(os.environ.get("XDG_DATA_HOME",
+                                            Path.home() / ".local" / "share")) / "Glance"
         user_env = user_dir / ".env"
         writable_env = user_env if frozen else (here.parents[3] / "shell" / ".env")
 
@@ -91,7 +91,6 @@ class SecurityPage(BasePage):
         reveal_btn.clicked.connect(lambda: self._open_dir(user_dir))
         loc_card.add_widget(reveal_btn)
         self.body_layout.addWidget(loc_card)
-
         self.body_layout.addStretch()
 
     def on_activate(self):
@@ -104,7 +103,7 @@ class SecurityPage(BasePage):
             val = getattr(self._cfg, attr, "") or ""
             if val:
                 dot.set_color(dt.SUCCESS)
-                masked = val[:4] + "•" * max(0, len(val) - 8) + val[-4:] if len(val) > 8 else "••••"
+                masked = (val[:4] + "•" * max(0, len(val) - 8) + val[-4:]) if len(val) > 8 else "••••"
                 status.setText(f"Set: {masked}")
                 status.setStyleSheet(f"color: {dt.SUCCESS.name()};")
             else:

@@ -1,7 +1,10 @@
-"""About page — version, credits, license, links."""
+"""
+About page — version, commit, credits, license, links.
+"""
 
 import sys
 import subprocess
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
@@ -20,8 +23,19 @@ class AboutPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # Logo + version
+        # ── Logo + Brand ───────────────────────────────────────────────
         brand_card = Card()
+        brand_card._layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Glance logo
+        logo_pm = dt.load_pixmap("glance-flat.png", size=64)
+        if not logo_pm.isNull():
+            logo = QLabel()
+            logo.setPixmap(logo_pm)
+            logo.setFixedSize(64, 64)
+            logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            brand_card.add_widget(logo)
+
         name = QLabel("Glance")
         name.setFont(dt.font(28, dt.QFont.Weight.Bold))
         name.setStyleSheet(f"color: {dt.BRAND_INDIGO.name()};")
@@ -45,17 +59,15 @@ class AboutPage(BasePage):
         ver_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         brand_card.add_widget(ver_lbl)
 
-        # Commit hash
         commit = self._get_commit()
         commit_lbl = QLabel(f"Build: {commit}")
         commit_lbl.setFont(dt.FONT_CAPTION)
         commit_lbl.setStyleSheet(f"color: {dt.TEXT_DIM.name()};")
         commit_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         brand_card.add_widget(commit_lbl)
-
         self.body_layout.addWidget(brand_card)
 
-        # Credits
+        # ── Credits ────────────────────────────────────────────────────
         self.body_layout.addWidget(self.section_label("Credits"))
         credits_card = Card()
         for line in [
@@ -69,7 +81,7 @@ class AboutPage(BasePage):
             credits_card.add_widget(lbl)
         self.body_layout.addWidget(credits_card)
 
-        # Links
+        # ── Links ──────────────────────────────────────────────────────
         self.body_layout.addWidget(self.section_label("Links"))
         links_card = Card()
         for label, url in [
@@ -80,7 +92,6 @@ class AboutPage(BasePage):
             btn.clicked.connect(lambda _c=False, u=url: self._open_url(u))
             links_card.add_widget(btn)
         self.body_layout.addWidget(links_card)
-
         self.body_layout.addStretch()
 
     @staticmethod

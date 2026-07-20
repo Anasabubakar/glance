@@ -1,11 +1,13 @@
-"""Models page — per-provider model lists, defaults, refresh."""
+"""
+Models page — per-provider model lists, defaults, refresh.
+"""
 
 import threading
+
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QRadioButton,
-    QButtonGroup, QScrollArea, QFrame,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
-from PyQt6.QtCore import pyqtSignal, QObject, Qt
+from PyQt6.QtCore import pyqtSignal, QObject
 
 from ..page_base import BasePage
 from ..widgets import Card, FlatButton, StatusDot
@@ -29,15 +31,22 @@ class _ModelLoader(QObject):
         self.result.emit(self.provider, models)
 
 
+MODEL_PROVIDERS = [
+    ("claude", "Claude (Anthropic)"),
+    ("openai", "OpenAI"),
+    ("gemini", "Gemini (Google)"),
+]
+
+
 class ModelsPage(BasePage):
     title = "Models"
-    icon = "\U0001F9E0"
+    icon = "🧠"
     subtitle = "View and select default models for each provider."
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._workers: list = []
-        self._model_containers: dict[str, QVBoxLayout] = {}
+        self._model_cards: dict[str, Card] = {}
         self._current_labels: dict[str, QLabel] = {}
 
         try:
@@ -46,13 +55,7 @@ class ModelsPage(BasePage):
         except Exception:
             self._cfg = None
 
-        self._providers = [
-            ("anthropic", "Claude"),
-            ("openai", "OpenAI"),
-            ("gemini", "Gemini"),
-        ]
-
-        for pkey, pname in self._providers:
+        for pkey, pname in MODEL_PROVIDERS:
             card = Card()
             header = QHBoxLayout()
             title = QLabel(pname)
@@ -69,90 +72,127 @@ class ModelsPage(BasePage):
 
             refresh_btn = FlatButton("Refresh")
             refresh_btn.setFixedWidth(80)
-            refresh_btn.clicked.connect(lambda _c=False, k=pkey: self._refresh_provider(k))
+            refresh_btn.clicked.connect(
+                lambda _c=False, k=pkey: self._refresh(k)
+            )
             header.addWidget(refresh_btn)
-
             card.add_layout(header)
 
-            model_list = QVBoxLayout()
-            model_list.setSpacing(4)
             loading = QLabel("Loading models…")
             loading.setFont(dt.FONT_CAPTION)
             loading.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
-            model_list.addWidget(loading)
-            card.add_layout(model_list)
-            self._model_containers[pkey] = model_list
+            card.add_widget(loading)
 
+            self._model_cards[pkey] = card
             self.body_layout.addWidget(card)
 
         self.body_layout.addWidget(self.hint_label(
-            "Models are cached for 30 days. Click Refresh to fetch the latest list from the provider."
+            "Models are cached for 30 days. Click Refresh to fetch the latest list."
         ))
         self.body_layout.addStretch()
 
     def on_activate(self):
-        for pkey, _pname in self._providers:
-            self._load_models(pkey)
+        for pkey, _pname in MODEL_PROVIDERS:
+            self._load(pkey)
 
-    def _load_models(self, provider: str):
+    def _load(self, provider: str):
+        card = self._model_cards.get(provider)
+        if card:
+            loading = QLabel("Loading models…")
+            loading.setFont(dt.FONT_CAPTION)
+            loading.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
+            card.clear_layout()
+            card.add_widget(loading)
+
         w = _ModelLoader(provider)
-        w.result.connect(self._apply_models)
+        w.result.connect(self._apply)
         self._workers.append(w)
         threading.Thread(target=w.run, daemon=True).start()
 
-    def _refresh_provider(self, provider: str):
-        def _do_refresh():
+    def _refresh(self, provider: str):
+        def _do():
             try:
                 from ai.model_registry import refresh
                 refresh(provider)
             except Exception:
                 pass
-            self._load_models(provider)
-        threading.Thread(target=_do_refresh, daemon=True).start()
+            self._load(provider)
 
-    def _apply_models(self, provider: str, models: list):
-        container = self._model_containers.get(provider)
-        if not container:
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _apply(self, provider: str, models: list):
+        card = self._model_cards.get(provider)
+        if not card:
             return
+        card.clear_layout()
 
-        while container.count():
-            item = container.takeAt(0)
-            w = item.widget()
-            if w:
-                w.deleteLater()
+        # Re-add header
+        for pkey, pname in MODEL_PROVIDERS:
+            if pkey == provider:
+                header = QHBoxLayout()
+                title = QLabel(pname)
+                title.setFont(dt.font(14, dt.QFont.Weight.DemiBold))
+                title.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()};")
+                header.addWidget(title)
+                header.addStretch()
+                current = self._current_labels.get(provider, QLabel(""))
+                header.addWidget(current)
+                refresh_btn = FlatButton("Refresh")
+                refresh_btn.setFixedWidth(80)
+                refresh_btn.clicked.connect(
+                    lambda _c=False, k=provider: self._refresh(k)
+                )
+                header.addWidget(refresh_btn)
+                card.add_layout(header)
+                break
 
         if not models:
             lbl = QLabel("No models found. Check your API key or click Refresh.")
             lbl.setFont(dt.FONT_CAPTION)
             lbl.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
-            container.addWidget(lbl)
+            card.add_widget(lbl)
             return
 
-        active_model = None
-        if self._cfg:
-            active_model = getattr(self._cfg, "active_model", None)
-
-        current_label = self._current_labels.get(provider)
+        active_model = self._cfg.active_model() if self._cfg else None
+        current_lbl = self._current_labels.get(provider)
 
         for model in models[:20]:
-            model_id = model if isinstance(model, str) else getattr(model, "id", str(model))
+            model_id = model if isinstance(model, str) else str(model)
             row = QHBoxLayout()
-            btn = FlatButton(model_id)
-            btn.setStyleSheet(btn.styleSheet() + "text-align: left; padding-left: 12px;")
+
+            dot = StatusDot(
+                dt.SUCCESS if model_id == active_model else dt.TEXT_DIM
+            )
+            row.addWidget(dot)
+
+            lbl = QLabel(model_id)
+            lbl.setFont(dt.font(12))
+            lbl.setStyleSheet(
+                f"color: {dt.BRAND_INDIGO.name() if model_id == active_model else dt.TEXT_PRIMARY.name()};"
+            )
+            row.addWidget(lbl, 1)
+
             if model_id == active_model:
-                btn.setStyleSheet(btn.styleSheet().replace(
-                    dt.BG_ELEVATED.name(), "rgba(100,107,242,0.15)"
-                ))
-                if current_label:
-                    current_label.setText(f"Default: {model_id}")
-            btn.clicked.connect(lambda _c=False, mid=model_id: self._set_default(mid, provider))
-            row.addWidget(btn, 1)
+                tag = QLabel("default")
+                tag.setFont(dt.FONT_SMALL)
+                tag.setStyleSheet(f"color: {dt.SUCCESS.name()};")
+                row.addWidget(tag)
+                if current_lbl:
+                    current_lbl.setText(f"Default: {model_id}")
+
+            select_btn = FlatButton("Select")
+            select_btn.setFixedWidth(70)
+            select_btn.clicked.connect(
+                lambda _c=False, mid=model_id: self._set_default(mid)
+            )
+            row.addWidget(select_btn)
 
             w = QWidget()
             w.setLayout(row)
-            container.addWidget(w)
+            card.add_widget(w)
 
-    def _set_default(self, model_id: str, provider: str):
+    def _set_default(self, model_id: str):
         if self._cfg:
             self._cfg.set_active_model(model_id)
-        self._load_models(provider)
+        for pkey, _pname in MODEL_PROVIDERS:
+            self._load(pkey)

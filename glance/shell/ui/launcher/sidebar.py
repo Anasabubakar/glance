@@ -1,52 +1,60 @@
-"""Sidebar navigation for the launcher dashboard."""
+"""
+sidebar.py — Premium navigation sidebar with integrated Glance branding.
+"""
+
+from __future__ import annotations
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QFrame,
-    QSizePolicy, QSpacerItem, QScrollArea,
+    QSizePolicy, QScrollArea,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor, QLinearGradient, QBrush
 
 from . import design_tokens as dt
+from .widgets import PillBadge
+
 
 NAV_SECTIONS = [
     ("LAUNCH", [
-        ("home",       "Home",         "⌂"),
+        ("home",       "Home",         "⏎"),
     ]),
     ("CONFIGURE", [
-        ("api_keys",   "API Keys",     "\U0001F511"),
+        ("api_keys",   "API Keys",     "🔑"),
         ("providers",  "AI Providers", "⚙"),
-        ("settings",   "Settings",     "⚙️"),
-        ("models",     "Models",       "\U0001F9E0"),
-        ("ollama",     "Ollama",       "\U0001F999"),
+        ("settings",   "Settings",     "⚙"),
+        ("models",     "Models",       "🧠"),
+        ("ollama",     "Ollama",       "🦙"),
     ]),
     ("TOOLS", [
-        ("extensions", "Extensions",   "\U0001F9E9"),
-        ("workspace",  "Workspace",    "\U0001F4BC"),
+        ("extensions", "Extensions",   "🧩"),
+        ("workspace",  "Workspace",    "💼"),
         ("updates",    "Updates",      "⬆"),
-        ("logs",       "Logs",         "\U0001F4C4"),
-        ("diagnostics","Diagnostics",  "\U0001F50D"),
-        ("cache",      "Cache",        "\U0001F4E6"),
+        ("logs",       "Logs",         "📄"),
+        ("diagnostics","Diagnostics",  "🔍"),
+        ("cache",      "Cache",        "📦"),
     ]),
     ("DATA", [
-        ("memory",     "Memory",       "\U0001F4AD"),
+        ("memory",     "Memory",       "💭"),
         ("downloads",  "Downloads",    "⬇"),
-        ("security",   "Security",     "\U0001F512"),
+        ("security",   "Security",     "🔒"),
     ]),
     ("INFO", [
         ("about",      "About",        "ℹ"),
-        ("advanced",   "Advanced",     "\U0001F527"),
+        ("advanced",   "Advanced",     "⚡"),
     ]),
 ]
 
 
 class SidebarItem(QPushButton):
-    """Single navigation item."""
+    """Single navigation item with active indicator."""
     nav_clicked = pyqtSignal(str)
 
     def __init__(self, key: str, label: str, icon: str, parent=None):
         super().__init__(parent)
         self.key = key
+        self._icon = icon
+        self._label = label
         self.setText(f"  {icon}  {label}")
         self.setToolTip(label)
         self.setFont(dt.font(13))
@@ -57,8 +65,11 @@ class SidebarItem(QPushButton):
         self._apply_style(False)
 
     def _apply_style(self, active: bool):
-        bg = f"rgba(100,107,242,0.12)" if active else "transparent"
-        border = f"3px solid {dt.BRAND_INDIGO.name()}" if active else "3px solid transparent"
+        bg = "rgba(100,107,242,0.12)" if active else "transparent"
+        border = (
+            f"3px solid {dt.BRAND_INDIGO.name()}" if active
+            else "3px solid transparent"
+        )
         text_c = dt.TEXT_PRIMARY.name() if active else dt.TEXT_MUTED.name()
         self.setStyleSheet(f"""
             QPushButton {{
@@ -69,6 +80,7 @@ class SidebarItem(QPushButton):
                 text-align: left;
                 padding-left: 12px;
                 border-radius: 0;
+                font-size: 13px;
             }}
             QPushButton:hover {{
                 background: rgba(100,107,242,0.08);
@@ -93,33 +105,63 @@ class Sidebar(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
 
-        # Logo / brand
+        # ── Brand header ────────────────────────────────────────────────
         logo_w = QWidget()
         logo_lay = QVBoxLayout(logo_w)
-        logo_lay.setContentsMargins(20, 20, 20, 12)
-        logo_lbl = QLabel("Glance")
-        logo_lbl.setFont(dt.font(18, QFont.Weight.Bold))
-        logo_lbl.setStyleSheet(f"""
-            color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 {dt.BRAND_INDIGO.name()}, stop:1 {dt.BRAND_VIOLET.name()});
-        """)
-        logo_lbl.setStyleSheet(f"color: {dt.BRAND_INDIGO.name()};")
+        logo_lay.setContentsMargins(16, 16, 16, 12)
+        logo_lay.setSpacing(0)
+
+        # Logo + title in a horizontal row
+        brand_row = QWidget()
+        brand_lay = QVBoxLayout(brand_row)
+        brand_lay.setContentsMargins(0, 0, 0, 0)
+        brand_lay.setSpacing(0)
+
+        # Glance brand mark
+        brand_top = QWidget()
+        brand_top_lay = QVBoxLayout(brand_top)
+        brand_top_lay.setContentsMargins(0, 0, 0, 0)
+        brand_top_lay.setSpacing(2)
+
+        # Try to load the flat logo
+        logo_pm = dt.load_pixmap("glance-flat.png", size=28)
+        if not logo_pm.isNull():
+            logo_lbl = QLabel()
+            logo_lbl.setPixmap(logo_pm)
+            logo_lbl.setFixedSize(28, 28)
+        else:
+            logo_lbl = QLabel("G")
+            logo_lbl.setFont(dt.font(24, dt.QFont.Weight.Bold))
+            logo_lbl.setStyleSheet(
+                f"color: {dt.BRAND_INDIGO.name()};"
+            )
+
+        name_lbl = QLabel("Glance")
+        name_lbl.setFont(dt.font(20, dt.QFont.Weight.Bold))
+        # Gradient text via stylesheet isn't well-supported in Qt, use solid
+        name_lbl.setStyleSheet(f"color: {dt.BRAND_INDIGO.name()};")
+
+        subtitle = QLabel("AI Desktop Companion")
+        subtitle.setFont(dt.FONT_SMALL)
+        subtitle.setStyleSheet(f"color: {dt.TEXT_DIM.name()}; letter-spacing: 0.5px;")
+        subtitle.setContentsMargins(0, 0, 0, 0)
+
         logo_lay.addWidget(logo_lbl)
-        sub = QLabel("Dashboard")
-        sub.setFont(dt.FONT_CAPTION)
-        sub.setStyleSheet(f"color: {dt.TEXT_DIM.name()};")
-        logo_lay.addWidget(sub)
+        logo_lay.addWidget(name_lbl)
+        logo_lay.addWidget(subtitle)
+
         lay.addWidget(logo_w)
 
-        # Separator
+        # ── Separator ───────────────────────────────────────────────────
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet("color: rgba(255,255,255,0.06);")
         sep.setFixedHeight(1)
         lay.addWidget(sep)
 
-        # Nav items (scrollable for small screens)
+        # ── Navigation items (scrollable) ───────────────────────────────
         self._items: dict[str, SidebarItem] = {}
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -134,6 +176,7 @@ class Sidebar(QWidget):
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
         """)
+
         nav_area = QWidget()
         nav_lay = QVBoxLayout(nav_area)
         nav_lay.setContentsMargins(8, 8, 8, 8)
@@ -141,9 +184,13 @@ class Sidebar(QWidget):
 
         for section_label, items in NAV_SECTIONS:
             sec = QLabel(section_label)
-            sec.setFont(dt.font(10, QFont.Weight.DemiBold))
-            sec.setStyleSheet(f"color: {dt.TEXT_DIM.name()}; padding: 12px 0 4px 16px;")
+            sec.setFont(dt.font(10, dt.QFont.Weight.DemiBold))
+            sec.setStyleSheet(
+                f"color: {dt.TEXT_DIM.name()}; padding: 12px 0 4px 16px; "
+                "letter-spacing: 1px;"
+            )
             nav_lay.addWidget(sec)
+
             for key, label, icon in items:
                 item = SidebarItem(key, label, icon)
                 item.nav_clicked.connect(self._on_item_clicked)
@@ -154,16 +201,25 @@ class Sidebar(QWidget):
         scroll.setWidget(nav_area)
         lay.addWidget(scroll, 1)
 
-        # Version footer
+        # ── Footer with version ─────────────────────────────────────────
+        footer = QWidget()
+        footer.setFixedHeight(40)
+        footer_lay = QVBoxLayout(footer)
+        footer_lay.setContentsMargins(16, 6, 16, 6)
+        footer_lay.setSpacing(0)
+
         try:
             import glance
             ver = glance.__version__
         except Exception:
             ver = "dev"
-        footer = QLabel(f"v{ver}")
-        footer.setFont(dt.FONT_CAPTION)
-        footer.setStyleSheet(f"color: {dt.TEXT_DIM.name()}; padding: 8px 16px;")
-        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        ver_lbl = QLabel(f"v{ver}")
+        ver_lbl.setFont(dt.FONT_SMALL)
+        ver_lbl.setStyleSheet(f"color: {dt.TEXT_DIM.name()};")
+        ver_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer_lay.addWidget(ver_lbl)
+
         lay.addWidget(footer)
 
     def _on_item_clicked(self, key: str):

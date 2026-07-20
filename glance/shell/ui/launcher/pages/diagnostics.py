@@ -1,9 +1,11 @@
-"""Diagnostics page — system info, provider health, cache sizes."""
+"""
+Diagnostics page — system info, provider health, cache sizes.
+"""
 
 import threading
 import sys
-import os
 import platform
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
     QFileDialog, QMessageBox,
@@ -11,7 +13,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal, QObject
 
 from ..page_base import BasePage
-from ..widgets import Card, GradientButton, FlatButton, StatusDot, LoadingSpinner
+from ..widgets import Card, GradientButton, FlatButton, LoadingSpinner
 from .. import design_tokens as dt
 
 
@@ -27,31 +29,24 @@ class _DiagWorker(QObject):
 
         try:
             from config import cfg
-            data["describe"] = cfg.describe()
             data["llm"] = cfg.llm_provider()
             data["stt"] = cfg.stt_provider()
             data["tts"] = cfg.tts_provider()
             data["search"] = cfg.search_provider()
             data["ollama_host"] = cfg.ollama_host or "http://localhost:11434"
         except Exception:
-            data["describe"] = {}
+            pass
 
         try:
             from ai.ollama_bootstrap import is_ollama_running, list_installed_models
             data["ollama_running"] = is_ollama_running()
-            if data["ollama_running"]:
-                data["ollama_models"] = [
-                    m if isinstance(m, str) else getattr(m, "name", str(m))
-                    for m in list_installed_models()
-                ]
-            else:
-                data["ollama_models"] = []
+            data["ollama_models"] = list_installed_models() if data["ollama_running"] else []
         except Exception:
             data["ollama_running"] = False
             data["ollama_models"] = []
 
         try:
-            from pathlib import Path
+            import os
             if sys.platform == "win32":
                 cache_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Glance"
             else:
@@ -62,13 +57,15 @@ class _DiagWorker(QObject):
         except Exception:
             data["cache_files"] = 0
             data["cache_size"] = 0
-
         self.result.emit(data)
+
+
+from pathlib import Path
 
 
 class DiagnosticsPage(BasePage):
     title = "Diagnostics"
-    icon = "\U0001F50D"
+    icon = "🔍"
     subtitle = "System information and provider health checks."
 
     def __init__(self, parent=None):
@@ -78,27 +75,18 @@ class DiagnosticsPage(BasePage):
         self._report = QTextEdit()
         self._report.setReadOnly(True)
         self._report.setFont(dt.FONT_MONO)
-        self._report.setStyleSheet(f"""
-            QTextEdit {{
-                background: {dt.BG_CARD.name()};
-                color: {dt.TEXT_MUTED.name()};
-                border: 1px solid rgba(255,255,255,0.06);
-                border-radius: {dt.CARD_RADIUS}px;
-                padding: 10px;
-            }}
-        """)
+        self._report.setStyleSheet(dt.TEXTEDIT_QSS)
         self._report.setMinimumHeight(350)
         self.body_layout.addWidget(self._report, 1)
 
-        self._spinner = LoadingSpinner(size=20)
+        self._spinner = LoadingSpinner(20)
         self._spinner.hide()
 
         btn_row = QHBoxLayout()
-        refresh_btn = GradientButton("Run Diagnostics")
-        refresh_btn.setFixedHeight(40)
-        refresh_btn.clicked.connect(self.on_activate)
-        self._refresh_btn = refresh_btn
-        btn_row.addWidget(refresh_btn)
+        self._run_btn = GradientButton("Run Diagnostics")
+        self._run_btn.setFixedHeight(40)
+        self._run_btn.clicked.connect(self.on_activate)
+        btn_row.addWidget(self._run_btn)
         btn_row.addWidget(self._spinner)
 
         save_btn = FlatButton("Save Report")
@@ -109,7 +97,7 @@ class DiagnosticsPage(BasePage):
 
     def on_activate(self):
         self._report.setPlainText("Running diagnostics…")
-        self._refresh_btn.setEnabled(False)
+        self._run_btn.setEnabled(False)
         self._spinner.start()
         w = _DiagWorker()
         w.result.connect(self._apply)
@@ -118,7 +106,7 @@ class DiagnosticsPage(BasePage):
 
     def _apply(self, data: dict):
         self._spinner.stop()
-        self._refresh_btn.setEnabled(True)
+        self._run_btn.setEnabled(True)
         lines = [
             "=== Glance Diagnostics ===",
             "",
@@ -150,7 +138,6 @@ class DiagnosticsPage(BasePage):
         )
         if path:
             try:
-                from pathlib import Path
                 Path(path).write_text(self._report.toPlainText())
             except Exception as e:
                 QMessageBox.warning(self, "Error", str(e))

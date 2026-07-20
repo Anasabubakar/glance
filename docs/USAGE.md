@@ -3,14 +3,16 @@
 This is the practical guide to `glance run` — setup, what to say, and how to get
 out of trouble. For the file organizer, see [CLI.md](CLI.md).
 
-> Glance is Windows-only and an early build. The core loop works; expect rough
-> edges, especially in speech recognition.
+> Glance now includes a Desktop Launcher Dashboard that opens before the companion.
+> The core loop works; expect rough edges, especially in speech recognition.
+> Cross-platform: Windows 10/11 and Linux (Ubuntu 22.04+, Debian 12+, Fedora 38+).
 
 ---
 
 ## 1. Install
 
-Requires **Windows 10/11** and **Python 3.10+**.
+Requires **Windows 10/11** or **Linux (Ubuntu 22.04+, Debian 12+, Fedora 38+)**
+and **Python 3.10+**.
 
 ```powershell
 git clone <your-repo-url> glance

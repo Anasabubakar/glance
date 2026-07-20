@@ -1,9 +1,12 @@
-"""Cache page — model cache files, per-provider clear, total size."""
+"""
+Cache page — model cache files, per-provider clear, total size.
+"""
 
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QMessageBox,
 )
@@ -17,12 +20,13 @@ from .. import design_tokens as dt
 def _cache_dir() -> Path:
     if sys.platform == "win32":
         return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Glance"
-    return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "Glance"
+    return Path(os.environ.get("XDG_DATA_HOME",
+                               Path.home() / ".local" / "share")) / "Glance"
 
 
 class CachePage(BasePage):
     title = "Cache"
-    icon = "\U0001F4E6"
+    icon = "📦"
     subtitle = "Manage model cache files and free disk space."
 
     def __init__(self, parent=None):
@@ -38,7 +42,9 @@ class CachePage(BasePage):
         self._dir_label = QLabel("")
         self._dir_label.setFont(dt.FONT_CAPTION)
         self._dir_label.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
-        self._dir_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._dir_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
         self._summary_card.add_widget(self._dir_label)
         self.body_layout.addWidget(self._summary_card)
 
@@ -53,13 +59,13 @@ class CachePage(BasePage):
         btn_row.addWidget(clear_all)
         btn_row.addStretch()
         self.body_layout.addLayout(btn_row)
-
         self.body_layout.addStretch()
 
     def on_activate(self):
         cdir = _cache_dir()
         self._dir_label.setText(str(cdir))
 
+        # Clear previous file list
         while self._files_container.count():
             item = self._files_container.takeAt(0)
             w = item.widget()
@@ -84,13 +90,15 @@ class CachePage(BasePage):
                 name.setFont(dt.FONT_BODY)
                 name.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()};")
                 row.addWidget(name, 1)
+
                 size_lbl = QLabel(f"{size / 1024:.1f} KB")
                 size_lbl.setFont(dt.FONT_CAPTION)
                 size_lbl.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
                 row.addWidget(size_lbl)
+
                 del_btn = FlatButton("Delete")
                 del_btn.setFixedWidth(70)
-                del_btn.clicked.connect(lambda _c=False, p=f: self._delete_file(p))
+                del_btn.clicked.connect(lambda _c=False, p=f: self._delete(p))
                 row.addWidget(del_btn)
                 card.add_layout(row)
 
@@ -99,12 +107,13 @@ class CachePage(BasePage):
                 age.setFont(dt.FONT_CAPTION)
                 age.setStyleSheet(f"color: {dt.TEXT_DIM.name()};")
                 card.add_widget(age)
-
                 self._files_container.addWidget(card)
 
-        self._total_label.setText(f"Total cache: {total / 1024:.1f} KB ({len(cache_files)} files)")
+        self._total_label.setText(
+            f"Total cache: {total / 1024:.1f} KB ({len(cache_files)} files)"
+        )
 
-    def _delete_file(self, path: Path):
+    def _delete(self, path: Path):
         reply = QMessageBox.question(
             self, "Delete Cache File",
             f"Delete {path.name}?",
