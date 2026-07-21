@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>glance</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Glance</name>
+  <summary>Open-source AI desktop companion</summary>
+  <description>
+    <p>
+      Glance sees your screen, points at things, and acts on them.
+      Voice-controlled AI assistant with screen understanding,
+      multiple LLM providers (Claude, OpenAI, Gemini, Ollama),
+      and desktop integration.
+    </p>
+  </description>
+  <categories>
+    <category>Utility</category>
+    <category>Accessibility</category>
+  </categories>
+  <url type="homepage">https://github.com/Anasabubakar/glance</url>
+  <url type="bugtracker">https://github.com/Anasabubakar/glance/issues</url>
+  <url type="donation">https://github.com/sponsors/Anasabubakar</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/Anasabubakar/glance/main/frontend/public/glance.png</image>
+      <caption>Glance desktop launcher dashboard</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Anasabubakar/glance/main/frontend/public/glance-flat.png</image>
+      <caption>Glance companion overlay</caption>
+    </screenshot>
+  </screenshots>
+  <recommends>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>voice</control>
+  </recommends>
+  <launchable type="desktop-id">glance.desktop</launchable>
+  <provides>
+    <binary>glance-companion</binary>
+  </provides>
+</component>

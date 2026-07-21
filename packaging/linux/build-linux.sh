@@ -124,6 +124,7 @@ build_appimage() {
         fi
     done
     cp "packaging/icons/glance-256.png" "$APPDIR/glance.png"
+    cp "packaging/icons/glance-256.png" "$APPDIR/.DirIcon"
 
     cat > "$APPDIR/AppRun" << 'APPRUN'
 #!/bin/bash
@@ -131,6 +132,8 @@ SELF="$(readlink -f "$0")"
 HERE="${SELF%/*}"
 export PATH="${HERE}/usr/bin:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/bin:${LD_LIBRARY_PATH:-}"
+export APPIMAGE_EXTRACT_AND_RUN=1
+cd "${HERE}" || exit 1
 exec "${HERE}/usr/bin/glance-companion" "$@"
 APPRUN
     chmod +x "$APPDIR/AppRun"
@@ -182,6 +185,9 @@ LAUNCHER
         fi
     done
 
+    mkdir -p "$DEB_ROOT/usr/share/metainfo"
+    cp packaging/linux/glance.metainfo.xml "$DEB_ROOT/usr/share/metainfo/glance.metainfo.xml"
+
     mkdir -p "$DEB_ROOT/DEBIAN"
     INSTALLED_SIZE=$(du -sk "$DEB_ROOT" | cut -f1)
     cat > "$DEB_ROOT/DEBIAN/control" << EOF
@@ -198,7 +204,11 @@ Description: Open-source AI desktop companion
  Voice-controlled AI assistant with screen understanding,
  multiple LLM providers (Claude, OpenAI, Gemini, Ollama),
  and desktop integration.
-Depends: libgl1, libegl1, libxkbcommon0, libdbus-1-3, libfontconfig1
+Depends: libgl1, libegl1, libxkbcommon0, libdbus-1-3, libfontconfig1,
+ libxcb-cursor0, libglib2.0-0, libpulse0, libasound2, libxcb-xinerama0,
+ libxcb-xfixes0, libxcb-shape0, libxkbcommon-x11-0
+Recommends: ollama
+Suggests: portaudio19-dev
 EOF
 
     cat > "$DEB_ROOT/DEBIAN/postinst" << 'POSTINST'
@@ -227,8 +237,10 @@ POSTRM
 
     find "$DEB_ROOT" -type d -exec chmod 755 {} \;
     find "$DEB_ROOT/opt/glance" -type f -exec chmod 644 {} \;
-    chmod 755 "$DEB_ROOT/opt/glance/glance-companion"
-    find "$DEB_ROOT/opt/glance" -name "*.so*" -exec chmod 755 {} \;
+    find "$DEB_ROOT/opt/glance" -type f -name "glance-companion" -exec chmod 755 {} \;
+    find "$DEB_ROOT/opt/glance" -type f -name "*.so*" -exec chmod 755 {} \;
+    find "$DEB_ROOT/opt/glance" -type f -name "*.so" -exec chmod 755 {} \;
+    find "$DEB_ROOT/opt/glance/_internal" -type f \( -name "python3*" -o -name "*.bin" -o -name "loader" \) -exec chmod 755 {} \; 2>/dev/null || true
 
     DEB_FILE="dist/glance_${VERSION}_${ARCH}.deb"
     dpkg-deb --build "$DEB_ROOT" "$DEB_FILE"
