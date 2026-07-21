@@ -9,15 +9,19 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Anasabubakar/glance/releases/latest"><strong>Download v0.2.0</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quickstart">Quickstart</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#new-in-v020">What's New</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#providers">Providers</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#building-from-source">Build from source</a>
+  <a href="https://github.com/Anasabubakar/glance/releases/latest"><strong>Download v0.2.1</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quickstart">Quickstart</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#new-in-v020">What's New</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#providers">Providers</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#building-from-source">Build from source</a>
 </p>
 
 <br>
 
 <p align="center">
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.2.0/Setup-Glance.exe">⬇ Windows Installer</a>&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.2.0/glance_0.2.0_amd64.deb">⬇ .deb (Ubuntu/Debian)</a>&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.2.0/Glance-0.2.0-x86_64.AppImage">⬇ AppImage (any Linux)</a>
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.2.1/Setup-Glance.exe">⬇ Windows (.exe)</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.2.1/glance_0.2.1_amd64.deb">⬇ Linux (.deb)</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.2.1/Glance-0.2.1-x86_64.AppImage">⬇ Linux (AppImage)</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Anasabubakar/glance/releases">All releases &amp; formats →</a>
 </p>
 
 ---
@@ -64,7 +68,7 @@ Glance now opens a **premium control dashboard** before launching the companion.
 
 ### Windows
 
-1. Download [**Setup-Glance.exe**](https://github.com/Anasabubakar/glance/releases/download/v0.2.0/Setup-Glance.exe)
+1. Download [**Setup-Glance.exe**](https://github.com/Anasabubakar/glance/releases/download/v0.2.1/Setup-Glance.exe)
 2. Run the installer
 3. Launch Glance from the Start menu or desktop shortcut
 4. The **Dashboard** opens — review your setup, then click **"Start Glance"**
@@ -74,21 +78,27 @@ Glance now opens a **premium control dashboard** before launching the companion.
 
 ### Linux
 
-**Debian / Ubuntu:**
+Choose your format:
+
+**Debian / Ubuntu (recommended):**
 
 ```bash
-wget https://github.com/Anasabubakar/glance/releases/download/v0.2.0/glance_0.2.0_amd64.deb
-sudo apt install ./glance_0.2.0_amd64.deb
+wget https://github.com/Anasabubakar/glance/releases/download/v0.2.1/glance_0.2.1_amd64.deb
+sudo apt install ./glance_0.2.1_amd64.deb
 glance-companion
 ```
+
+The .deb integrates with your system — adds a desktop entry, icons, and file associations. It also appears in GNOME Software / KDE Discover with screenshots.
 
 **Any distro (AppImage):**
 
 ```bash
-wget https://github.com/Anasabubakar/glance/releases/download/v0.2.0/Glance-0.2.0-x86_64.AppImage
-chmod +x Glance-0.2.0-x86_64.AppImage
-./Glance-0.2.0-x86_64.AppImage
+wget https://github.com/Anasabubakar/glance/releases/download/v0.2.1/Glance-0.2.1-x86_64.AppImage
+chmod +x Glance-0.2.1-x86_64.AppImage
+./Glance-0.2.1-x86_64.AppImage
 ```
+
+No installation required. Just download, make executable, and run. Works on any Linux distribution.
 
 ### From source
 
@@ -198,6 +208,27 @@ glance undo                            # reverse everything
 | Click, type, launch apps | Yes | Yes |
 | System tray | Yes | Yes |
 | Installer | .exe | .deb, AppImage |
+
+---
+
+## Download & install
+
+All release assets are available on the [GitHub Releases page](https://github.com/Anasabubakar/glance/releases).
+
+| Format | Platform | Description |
+|--------|----------|-------------|
+| `Setup-Glance.exe` | Windows | Inno Setup installer — desktop shortcut, start menu, uninstaller |
+| `glance_VERSION_ARCH.deb` | Debian/Ubuntu | System package — integrates with GNOME/KDE software centers, adds desktop entry |
+| `Glance-VERSION-x86_64.AppImage` | Any Linux | Portable — no install needed, works on any distro |
+
+### Which Linux format should I choose?
+
+- **.deb** — Best for Debian, Ubuntu, and derivatives. Integrates with your system: shows in the app menu, has screenshots in the software center, and supports auto-updates via apt.
+- **AppImage** — Best for non-Debian distros (Fedora, Arch, etc.) or if you want portability. Download, `chmod +x`, run. No installation required.
+
+### Windows notes
+
+The installer provides a desktop shortcut and start menu entry. On first run, Windows SmartScreen may show a warning because the binary is not signed. Click **"More info" → "Run anyway"** to proceed.
 
 ---
 

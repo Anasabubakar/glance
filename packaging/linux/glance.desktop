@@ -11,3 +11,4 @@ Keywords=AI;assistant;voice;screen;companion;
 StartupNotify=true
 StartupWMClass=Glance
 MimeType=
+X-AppImage-Version=0.2.1
