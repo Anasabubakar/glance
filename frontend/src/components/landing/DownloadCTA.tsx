@@ -21,9 +21,23 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "v0.2.1",
+    tag: "v0.2.1",
+    label: "Latest",
+    files: {
+      Windows: [
+        { label: "Installer", ext: ".exe", size: "~85 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.2.1/Setup-Glance.exe" },
+      ],
+      Linux: [
+        { label: "Package (Debian/Ubuntu)", ext: ".deb", size: "~80 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.2.1/glance_0.2.1_amd64.deb" },
+        { label: "AppImage (any distro)", ext: ".AppImage", size: "~80 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.2.1/Glance-0.2.1-x86_64.AppImage" },
+      ],
+    },
+  },
+  {
     version: "v0.2.0",
     tag: "v0.2.0",
-    label: "Latest",
+    label: "Previous",
     files: {
       Windows: [
         { label: "Installer", ext: ".exe", size: "~85 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.2.0/Setup-Glance.exe" },
@@ -31,20 +45,6 @@ const RELEASES: Release[] = [
       Linux: [
         { label: "Package (Debian/Ubuntu)", ext: ".deb", size: "~80 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.2.0/glance_0.2.0_amd64.deb" },
         { label: "AppImage (any distro)", ext: ".AppImage", size: "~80 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.2.0/Glance-0.2.0-x86_64.AppImage" },
-      ],
-    },
-  },
-  {
-    version: "v0.1.0",
-    tag: "v0.1.0",
-    label: "Previous",
-    files: {
-      Windows: [
-        { label: "Installer", ext: ".exe", size: "~80 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.1.0/Setup-Glance.exe" },
-      ],
-      Linux: [
-        { label: "Package (Debian/Ubuntu)", ext: ".deb", size: "~75 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.1.0/glance_0.1.0_amd64.deb" },
-        { label: "AppImage (any distro)", ext: ".AppImage", size: "~75 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.1.0/Glance-0.1.0-x86_64.AppImage" },
       ],
     },
   },
