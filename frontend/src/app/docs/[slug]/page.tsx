@@ -331,6 +331,8 @@ function LLMProvidersContent() {
         { name: "OpenAI", dot: "#10A37F", config: `"provider": "openai",\n"apiKey": "sk-..."` },
         { name: "Google Gemini", dot: "#4285F4", config: `"provider": "gemini",\n"apiKey": "AI..."` },
         { name: "Ollama (Local)", dot: "#FFFFFF", config: `"provider": "ollama",\n"baseUrl": "http://localhost:11434"` },
+        { name: "Glance Cloud (free, default)", dot: "#34D399", config: `"provider": "cloud"` },
+        { name: "Custom endpoint (BYOK)", dot: "#A78BFA", config: `"provider": "custom",\n"baseUrl": "https://openrouter.ai/api/v1",\n"apiKey": "sk-...",\n"model": "anthropic/claude-sonnet-4.5"` },
       ].map((p) => (
         <div key={p.name} className="mb-8">
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -340,6 +342,12 @@ function LLMProvidersContent() {
           <CodeBlock code={`{\n  ${p.config}\n}`} language="json" filename="config.json" />
         </div>
       ))}
+
+      <Callout type="info" title="Free by default">
+        With no key set, Glance uses Glance Cloud, a free hosted text model. It is text-only
+        (screenshots are not uploaded) and rate-limited. For screen-aware features use Ollama
+        or a vision model on your own endpoint. Set GLANCE_NO_CLOUD=1 to opt out.
+      </Callout>
 
       <Callout type="info" title="No provider needed">
         Glance works without any LLM provider for basic screen reading and pointing. Providers
@@ -429,6 +437,15 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-0" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.0 — Free Glance Cloud and BYOK</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Glance Cloud: free hosted text model, the default when no key is set</li>
+        <li>• Custom (BYOK) provider for any OpenAI-compatible endpoint</li>
+        <li>• Custom endpoint form on the API Keys page</li>
+        <li>• Automatic retry when the shared free tier is busy</li>
+      </ul>
+
       <h2 id="v0-1-0" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.1.0 — Initial Release</h2>
       <p className="text-text-dim text-sm mb-4">July 2025</p>
       <ul className="space-y-2 text-text-muted mb-6">
