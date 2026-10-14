@@ -37,7 +37,7 @@ for pkg in (
 
 # The shell's own bare-name top-level modules + packages.
 hiddenimports += [
-    "config", "main", "companion_manager", "hotkey",
+    "config", "main", "companion_manager", "hotkey", "hotkey_gnome",
     "memory_store", "google_workspace",
     "keyboard", "pynput", "dotenv",
 ]

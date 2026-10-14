@@ -68,7 +68,7 @@ for pkg in (
 
 # The shell's bare-name top-level modules + packages.
 hiddenimports += [
-    "config", "main", "companion_manager", "hotkey",
+    "config", "main", "companion_manager", "hotkey", "hotkey_gnome",
     "memory_store", "google_workspace",
     "keyboard", "pynput", "dotenv",
     # pynput picks its backend with importlib at runtime. The CI build machine has
