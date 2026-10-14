@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-4" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.4 — Hotkey and voice on GNOME</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• The push-to-talk hotkey now works on GNOME/Wayland (grabbed in the compositor by the extension)</li>
+        <li>• More forgiving wake word, with wake-word activity logged for troubleshooting</li>
+        <li>• Log out and back in once after updating so GNOME loads the updated extension</li>
+      </ul>
+
       <h2 id="v0-3-3" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.3 — Linux launch fix</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
