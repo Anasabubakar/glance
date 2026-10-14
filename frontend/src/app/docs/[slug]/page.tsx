@@ -437,6 +437,16 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-1" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.1 — Always-on-top cursor on GNOME</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• The buddy cursor stays above every window and workspace on GNOME</li>
+        <li>• Smooth pointer following drawn by a small GNOME Shell extension</li>
+        <li>• No taskbar or alt-tab entry for the cursor</li>
+        <li>• X11: overlay pinned to all desktops and re-raised automatically</li>
+        <li>• Log out and back in once after the first launch to enable it</li>
+      </ul>
+
       <h2 id="v0-3-0" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.0 — Free Glance Cloud and BYOK</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
