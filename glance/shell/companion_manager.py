@@ -103,6 +103,7 @@ def _build_system_prompt(
     code_active: bool = False,
     language_code: str = "en",
     extra: str = "",
+    compact: bool = False,
 ) -> str:
     today = datetime.now().strftime("%A, %B %d, %Y")
     ctx_lines = [f"TODAY'S DATE: {today}."]
@@ -120,6 +121,20 @@ def _build_system_prompt(
             f"LESSON PROGRESS: step {lesson_step + 1} of {total_steps}. "
             "Explain ONLY this step, then end with \"Say 'next' when ready.\""
         )
+
+    # ── Compact prompt for the text-only cloud tier ─────────────────────────
+    # The full prompt (~1,200 tokens) teaches on-screen pointing, which the
+    # text-only free tier can't do, and on CPU it costs ~40 s before the first
+    # word. Keep the stable text FIRST so the server's prompt cache can reuse it;
+    # the date/window go last because they change.
+    if compact and not quiz_mode:
+        return (f"{_load_soul()}\n\n"
+                "You are talking with the user by voice and you cannot see their "
+                "screen. Reply in one or two short spoken sentences. No markdown, "
+                "lists, or [POINT] tags. If they ask about their screen, say you "
+                "need a vision model (Ollama or their own key) for that.\n\n"
+                + "\n".join(ctx_lines)
+                + (("\n\n" + extra.strip()[:700]) if extra and extra.strip() else ""))
 
     # ── Quiz mode: dominant prompt that completely replaces normal behaviour ──
     if quiz_mode:
@@ -1054,6 +1069,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
                 detected_coord=detected_coord,
                 code_active=code_active,
                 language_code=lang_code,
+                compact=(cfg.llm_provider() == "cloud"),
                 extra=ocr_extra + doc_extra + (
                     "\n\n" + self._memory.facts_block() if self._memory.facts else "")
                     + self._bg_block(),
