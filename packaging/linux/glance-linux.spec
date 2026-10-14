@@ -84,6 +84,7 @@ datas += [
     (os.path.join(ROOT, "glance", "shell", "SOUL.md"), "."),
     (os.path.join(ROOT, "glance", "shell", "skills"),  "skills"),
     (os.path.join(ROOT, "glance", "shell", "assets"),  "assets"),
+    (os.path.join(ROOT, "glance", "shell", "gnome_ext"), "gnome_ext"),
 ]
 
 a = Analysis(
