@@ -7,7 +7,7 @@ import threading
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
-from PyQt6.QtCore import pyqtSignal, QObject
+from PyQt6.QtCore import Qt, pyqtSignal, QObject
 
 from ..page_base import BasePage
 from ..widgets import Card, GradientButton, FlatButton, PillBadge
