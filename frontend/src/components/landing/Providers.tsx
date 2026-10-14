@@ -8,6 +8,8 @@ const providers = [
   { name: "Gemini", color: "#4285F4" },
   { name: "Copilot", color: "#6366F1" },
   { name: "Ollama", color: "#FFFFFF" },
+  { name: "Glance Cloud", color: "#34D399" },
+  { name: "Any OpenAI-compatible", color: "#A78BFA" },
 ];
 
 export default function Providers() {
@@ -49,7 +51,7 @@ export default function Providers() {
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-green/20 bg-green/5">
                 <div className="w-1.5 h-1.5 rounded-full bg-green" />
                 <span className="text-xs text-green font-medium">
-                  Free · Offline
+                  Free · No download
                 </span>
               </div>
             </div>
