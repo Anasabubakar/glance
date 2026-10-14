@@ -26,11 +26,11 @@ const RELEASES: Release[] = [
     label: "Latest",
     files: {
       Windows: [
-        { label: "Installer", ext: ".exe", size: "~85 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.0/Setup-Glance.exe" },
+        { label: "Installer", ext: ".exe", size: "~150 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.0/Setup-Glance.exe" },
       ],
       Linux: [
-        { label: "Package (Debian/Ubuntu)", ext: ".deb", size: "~80 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.0/glance_0.3.0_amd64.deb" },
-        { label: "AppImage (any distro)", ext: ".AppImage", size: "~80 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.0/Glance-0.3.0-x86_64.AppImage" },
+        { label: "Package (Debian/Ubuntu)", ext: ".deb", size: "~220 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.0/glance_0.3.0_amd64.deb" },
+        { label: "AppImage (any distro)", ext: ".AppImage", size: "~295 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.0/Glance-0.3.0-x86_64.AppImage" },
       ],
     },
   },
