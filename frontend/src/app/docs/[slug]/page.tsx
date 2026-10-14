@@ -437,6 +437,13 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-3" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.3 — Linux launch fix</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Fixed the Linux .deb and AppImage exiting at startup with &quot;shell import failed&quot;</li>
+        <li>• The release build now smoke-tests the packaged Linux app before shipping</li>
+      </ul>
+
       <h2 id="v0-3-2" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.2 — Dashboard fix</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
