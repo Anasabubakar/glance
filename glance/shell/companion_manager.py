@@ -129,10 +129,12 @@ def _build_system_prompt(
     # the date/window go last because they change.
     if compact and not quiz_mode:
         return (f"{_load_soul()}\n\n"
-                "You are talking with the user by voice and you cannot see their "
-                "screen. Reply in one or two short spoken sentences. No markdown, "
-                "lists, or [POINT] tags. If they ask about their screen, say you "
-                "need a vision model (Ollama or their own key) for that.\n\n"
+                "You are talking with the user by voice. You CANNOT see their screen; "
+                "all you know about it is the active window's title below. Never "
+                "claim to see anything else. Reply in one or two short spoken "
+                "sentences. No markdown, lists, or [POINT] tags. If they ask what is "
+                "on their screen, say honestly that you can't see it in this mode "
+                "and that a vision model (Ollama or their own key) is needed.\n\n"
                 + "\n".join(ctx_lines)
                 + (("\n\n" + extra.strip()[:700]) if extra and extra.strip() else ""))
 
