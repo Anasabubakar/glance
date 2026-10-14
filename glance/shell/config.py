@@ -33,6 +33,15 @@ class Config:
     openai_api_key: Optional[str] = field(default_factory=lambda: os.getenv("OPENAI_API_KEY") or None)
     google_api_key: Optional[str] = field(default_factory=lambda: os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or None)
     ollama_host: str = field(default_factory=lambda: os.getenv("OLLAMA_HOST", "http://localhost:11434"))
+    # BYOK: any OpenAI-compatible endpoint (OpenRouter, Groq, Together, LM Studio,
+    # vLLM, a self-hosted Ollama /v1, ...). The user supplies all three.
+    custom_base_url: str = field(default_factory=lambda: os.getenv("GLANCE_CUSTOM_BASE_URL", "").strip())
+    custom_api_key: str = field(default_factory=lambda: os.getenv("GLANCE_CUSTOM_API_KEY", "").strip())
+    custom_model: str = field(default_factory=lambda: os.getenv("GLANCE_CUSTOM_MODEL", "").strip())
+    # Glance Cloud: free hosted text model. The key is minted automatically on
+    # first use (see ai/cloud_provider.py) and cached in the user's .env.
+    cloud_url: str = field(default_factory=lambda: os.getenv("GLANCE_CLOUD_URL", "https://llm.anasmasama.dev").rstrip("/"))
+    cloud_key: str = field(default_factory=lambda: os.getenv("GLANCE_CLOUD_KEY", "").strip())
     # Legacy single-model knob — still respected as a fallback for both slots
     # below. New users should prefer OLLAMA_VISION_MODEL / OLLAMA_TEXT_MODEL.
     ollama_model: str = field(default_factory=lambda: os.getenv("OLLAMA_MODEL", "llama3.2-vision"))
@@ -80,7 +89,16 @@ class Config:
             pass
         if self.google_api_key:
             return "gemini"
+        if self.custom_ready():
+            return "custom"
+        # No key anywhere: use the free hosted model instead of forcing a
+        # multi-GB local download. GLANCE_NO_CLOUD=1 restores the old default.
+        if os.getenv("GLANCE_NO_CLOUD", "").strip() not in ("1", "true", "yes"):
+            return "cloud"
         return "ollama"
+
+    def custom_ready(self) -> bool:
+        return bool(self.custom_base_url and self.custom_model)
 
     def available_llm_providers(self) -> list[str]:
         """All providers the user can switch to right now."""
@@ -97,6 +115,9 @@ class Config:
             pass
         if self.google_api_key:
             out.append("gemini")
+        if self.custom_ready():
+            out.append("custom")
+        out.append("cloud")    # free hosted tier, key auto-minted on first use
         out.append("ollama")   # always available if the daemon is running
         return out
 
@@ -165,6 +186,25 @@ class Config:
         self.openai_api_key = os.getenv("OPENAI_API_KEY") or None
         self.google_api_key = (os.getenv("GOOGLE_API_KEY")
                                or os.getenv("GEMINI_API_KEY") or None)
+        self.custom_base_url = os.getenv("GLANCE_CUSTOM_BASE_URL", "").strip()
+        self.custom_api_key = os.getenv("GLANCE_CUSTOM_API_KEY", "").strip()
+        self.custom_model = os.getenv("GLANCE_CUSTOM_MODEL", "").strip()
+
+    def remove_env_values(self, keys: list[str]) -> None:
+        """Delete keys from the writable .env and the running process, then
+        refresh the live fields (save_env_values ignores empty values)."""
+        for k in keys:
+            os.environ.pop(k, None)
+        try:
+            if _WRITABLE_ENV.exists():
+                kept = [ln for ln in _WRITABLE_ENV.read_text(encoding="utf-8").splitlines(keepends=True)
+                        if not any(ln.startswith(k + "=") or ln.startswith(k + " =") for k in keys)]
+                _WRITABLE_ENV.write_text("".join(kept), encoding="utf-8")
+        except Exception:
+            pass
+        self.custom_base_url = os.getenv("GLANCE_CUSTOM_BASE_URL", "").strip()
+        self.custom_api_key = os.getenv("GLANCE_CUSTOM_API_KEY", "").strip()
+        self.custom_model = os.getenv("GLANCE_CUSTOM_MODEL", "").strip()
 
     def stt_provider(self) -> str:
         # Allow explicit override via env (so users can force whisper_cpp etc.)
@@ -210,6 +250,10 @@ class Config:
             return os.environ.get("GLANCE_FAST_MODEL", "gemini-2.0-flash")
         if p == "copilot":
             return os.environ.get("GLANCE_FAST_MODEL", "gpt-4o-mini")
+        if p == "custom":
+            return os.environ.get("GLANCE_FAST_MODEL", self.custom_model)
+        if p == "cloud":
+            return os.environ.get("GLANCE_FAST_MODEL", "glance")
         return os.environ.get("GLANCE_FAST_MODEL", "llama3.2:3b")
 
     def vision_model(self) -> str:
@@ -228,6 +272,10 @@ class Config:
             return os.environ.get("GLANCE_VISION_MODEL", "gemini-2.0-flash")
         if p == "copilot":
             return os.environ.get("GLANCE_VISION_MODEL", "gpt-4o")
+        if p == "custom":
+            return os.environ.get("GLANCE_VISION_MODEL", self.custom_model)
+        if p == "cloud":
+            return "glance"   # text-only tier; screenshots are not sent
         return os.environ.get("GLANCE_VISION_MODEL", self.get_ollama_model("vision"))
 
     def describe(self) -> dict:
