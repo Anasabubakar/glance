@@ -53,7 +53,7 @@ class ProvidersPage(BasePage):
         self.body_layout.addWidget(self.section_label("Provider Priority"))
         self.body_layout.addWidget(self.hint_label(
             "Glance tries providers in order: Claude → OpenAI → GitHub Copilot → "
-            "Gemini → Ollama. The first one with a valid key becomes active."
+            "Gemini → Custom → Glance Cloud. Ollama is used when selected."
         ))
 
         providers = [
@@ -61,6 +61,8 @@ class ProvidersPage(BasePage):
             ("openai",    "OpenAI",             "Cloud LLM — GPT models"),
             ("copilot",   "GitHub Copilot",     "Cloud LLM — device-flow login"),
             ("gemini",    "Gemini (Google)",     "Cloud LLM — Gemini models"),
+            ("cloud",     "Glance Cloud",       "Free hosted text model — no key, no download"),
+            ("custom",    "Custom (BYOK)",      "Any OpenAI-compatible endpoint you provide"),
             ("ollama",    "Ollama",             "Local LLM — runs on your machine"),
         ]
 
