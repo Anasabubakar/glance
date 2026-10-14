@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-5" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.5 — Glance Cloud fixes</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Fixed Glance Cloud getting stuck on &quot;HTTP Error 429&quot;; the key is now saved and errors are clear</li>
+        <li>• Free-tier replies are much faster (about 6 s to first word, then about 1 s)</li>
+        <li>• Wake word ignores steady room noise and invented text</li>
+      </ul>
+
       <h2 id="v0-3-4" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.4 — Hotkey and voice on GNOME</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
