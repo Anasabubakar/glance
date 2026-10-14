@@ -9,15 +9,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Anasabubakar/glance/releases/latest"><strong>Download v0.3.1</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quickstart">Quickstart</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#new-in-v031">What's New</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#providers">Providers</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#building-from-source">Build from source</a>
+  <a href="https://github.com/Anasabubakar/glance/releases/latest"><strong>Download v0.3.2</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quickstart">Quickstart</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#new-in-v032">What's New</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#providers">Providers</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#building-from-source">Build from source</a>
 </p>
 
 <br>
 
 <p align="center">
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.1/Setup-Glance.exe">⬇ Windows (.exe)</a>&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.1/glance_0.3.1_amd64.deb">⬇ Linux (.deb)</a>&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.1/Glance-0.3.1-x86_64.AppImage">⬇ Linux (AppImage)</a>
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.2/Setup-Glance.exe">⬇ Windows (.exe)</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.2/glance_0.3.2_amd64.deb">⬇ Linux (.deb)</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.2/Glance-0.3.2-x86_64.AppImage">⬇ Linux (AppImage)</a>
 </p>
 
 <p align="center">
@@ -31,6 +31,10 @@ Hold a hotkey, talk to your computer, let go. Glance captures your screen, liste
 It works with **Claude**, **OpenAI**, **Gemini**, **GitHub Copilot**, or fully offline with **Ollama** — no API keys required for local mode.
 
 ---
+
+## New in v0.3.2
+
+- **Fix:** the dashboard now opens. v0.3.0 and v0.3.1 hit a crash on startup (`name 'Qt' is not defined`) and fell back to the bare companion, which also hid the new Custom endpoint form. If you installed either, update.
 
 ## New in v0.3.1
 
@@ -89,7 +93,7 @@ Glance now opens a **premium control dashboard** before launching the companion.
 
 ### Windows
 
-1. Download [**Setup-Glance.exe**](https://github.com/Anasabubakar/glance/releases/download/v0.3.1/Setup-Glance.exe)
+1. Download [**Setup-Glance.exe**](https://github.com/Anasabubakar/glance/releases/download/v0.3.2/Setup-Glance.exe)
 2. Run the installer
 3. Launch Glance from the Start menu or desktop shortcut
 4. The **Dashboard** opens — review your setup, then click **"Start Glance"**
@@ -104,8 +108,8 @@ Choose your format:
 **Debian / Ubuntu (recommended):**
 
 ```bash
-wget https://github.com/Anasabubakar/glance/releases/download/v0.3.1/glance_0.3.1_amd64.deb
-sudo apt install ./glance_0.3.1_amd64.deb
+wget https://github.com/Anasabubakar/glance/releases/download/v0.3.2/glance_0.3.2_amd64.deb
+sudo apt install ./glance_0.3.2_amd64.deb
 glance-companion
 ```
 
@@ -114,9 +118,9 @@ The .deb integrates with your system — adds a desktop entry, icons, and file a
 **Any distro (AppImage):**
 
 ```bash
-wget https://github.com/Anasabubakar/glance/releases/download/v0.3.1/Glance-0.3.1-x86_64.AppImage
-chmod +x Glance-0.3.1-x86_64.AppImage
-./Glance-0.3.1-x86_64.AppImage
+wget https://github.com/Anasabubakar/glance/releases/download/v0.3.2/Glance-0.3.2-x86_64.AppImage
+chmod +x Glance-0.3.2-x86_64.AppImage
+./Glance-0.3.2-x86_64.AppImage
 ```
 
 No installation required. Just download, make executable, and run. Works on any Linux distribution.
