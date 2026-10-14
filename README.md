@@ -181,6 +181,10 @@ GLANCE_CUSTOM_MODEL=anthropic/claude-sonnet-4.5   # pick a vision model to keep 
 
 Set `GLANCE_NO_CLOUD=1` to stop Glance falling back to the hosted free tier.
 
+### Cursor overlay on GNOME
+
+On GNOME, Glance installs a small shell extension so the buddy cursor stays above every window and workspace and follows your pointer smoothly. Log out and back in once after the first launch to enable it. Other desktops use a plain overlay window. Set `GLANCE_OVERLAY=qt` to force that.
+
 ### Ollama setup
 
 ```bash
