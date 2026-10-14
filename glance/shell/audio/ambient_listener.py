@@ -19,6 +19,14 @@ import sounddevice as sd
 from audio.capture import pcm16_to_wav, SAMPLE_RATE
 
 
+def _log(cat: str, msg: str) -> None:
+    try:
+        from session_log import slog
+        slog(cat, msg)
+    except Exception:
+        print(f"[{cat}] {msg}", flush=True)
+
+
 class Mode(Enum):
     STANDBY       = auto()   # wake-word scanning
     RECORDING     = auto()   # actively buffering user utterance
@@ -42,6 +50,47 @@ WAKE_WORDS = (
     "hey glance", "hi glance", "hey clack", "ok glance", "yo glance",
     "hey clackie", "hey clacki", "hey klacky", "hey cracky", "hey clarky",
 )
+
+
+def _skeleton(word: str) -> str:
+    """Rough consonant skeleton so sound-alikes compare equal: g/c/q/k -> k,
+    x -> ks, z -> s, vowels dropped. 'glance' -> 'klnk', 'k-lax' -> 'klks'."""
+    out = []
+    for ch in word:
+        if ch in "gcqk":
+            out.append("k")
+        elif ch == "x":
+            out.append("ks")
+        elif ch in "zs":
+            out.append("s")
+        elif ch.isalpha() and ch not in "aeiouyhw":
+            out.append(ch)
+    return "".join(out)
+
+
+def wake_match(text: str) -> bool:
+    """True if `text` (a whisper transcript) contains the wake word. Whisper-tiny
+    mangles 'Glance' a dozen ways, so besides the explicit phrases we accept
+    near spellings (glans, clance) and sound-alikes that start gl/cl/kl (k-lax)."""
+    import re
+    from difflib import SequenceMatcher
+    t = " ".join(re.sub(r"[^a-z]+", " ", text.lower()).split())
+    if not t:
+        return False
+    if any(w in t for w in WAKE_WORDS):
+        return True
+    words = t.split()
+    cands = words + [a + b for a, b in zip(words, words[1:])]   # also "k lax" -> "klax"
+    target_sk = _skeleton("glance")
+    for w in cands:
+        if not (3 <= len(w) <= 8):
+            continue
+        if SequenceMatcher(None, w, "glance").ratio() >= 0.72:
+            return True
+        if w[0] in "gck" and w[1:2] in ("l", "") and \
+                SequenceMatcher(None, _skeleton(w), target_sk).ratio() >= 0.74:
+            return True
+    return False
 
 
 class AmbientListener:
@@ -221,10 +270,12 @@ class AmbientListener:
             text = self._transcribe_tiny(pcm).lower().strip()
             if not text:
                 return
-            if any(w in text for w in WAKE_WORDS):
+            hit = wake_match(text)
+            _log("WAKE", f"heard {text!r} -> {'MATCH' if hit else 'no match'}")
+            if hit:
                 self._on_wake()
-        except Exception:
-            pass
+        except Exception as e:
+            _log("WAKE", f"wake check failed: {type(e).__name__}: {e}")
         finally:
             self._wake_inflight = False
 
@@ -246,11 +297,24 @@ class AmbientListener:
                 condition_on_previous_text=False,
                 no_speech_threshold=0.45,
                 temperature=0.0,
-                initial_prompt="Glance is a helpful AI assistant.",
+                initial_prompt="Hey Glance. Glance is a helpful AI assistant.",
+                **self._hotword_kwargs(),
             )
             return " ".join(s.text for s in segments)
         finally:
             os.unlink(path)
+
+    @staticmethod
+    def _hotword_kwargs() -> dict:
+        """Bias whisper toward the wake word when this faster-whisper supports it."""
+        try:
+            import inspect
+            from faster_whisper import WhisperModel
+            if "hotwords" in inspect.signature(WhisperModel.transcribe).parameters:
+                return {"hotwords": "Glance"}
+        except Exception:
+            pass
+        return {}
 
     def _get_model(self):
         with self._wake_lock:
