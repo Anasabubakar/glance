@@ -120,6 +120,9 @@ class AmbientListener:
         self._seg_speech_blocks = 0
         self._seg_silence_blocks = 0
         self._in_segment = False
+        # Adaptive noise floor so steady room noise isn't mistaken for speech
+        # (which made the wake check run every 3 s and burn CPU).
+        self._noise_floor = 0.004
 
         # Recording buffer (hotkey push-to-talk OR post-wake capture)
         self._rec_buffer: list[bytes] = []
@@ -218,7 +221,11 @@ class AmbientListener:
         if len(self._preroll) > PRE_ROLL_BLOCKS:
             self._preroll.pop(0)
 
-        is_speech = rms > ENERGY_THRESHOLD
+        if rms < self._noise_floor * 1.5:
+            self._noise_floor = 0.98 * self._noise_floor + 0.02 * rms
+        else:
+            self._noise_floor *= 1.0004        # allow slow upward drift (new noise)
+        is_speech = rms > max(ENERGY_THRESHOLD, self._noise_floor * 2.2)
 
         if not self._in_segment:
             if is_speech:
@@ -297,24 +304,17 @@ class AmbientListener:
                 condition_on_previous_text=False,
                 no_speech_threshold=0.45,
                 temperature=0.0,
-                initial_prompt="Hey Glance. Glance is a helpful AI assistant.",
-                **self._hotword_kwargs(),
             )
-            return " ".join(s.text for s in segments)
+            kept = []
+            for seg in segments:
+                # Whisper invents text over noise ("thanks for watching"); keep only
+                # segments it is reasonably sure contain speech.
+                if (seg.no_speech_prob > 0.6 and seg.avg_logprob < -0.7) or seg.avg_logprob < -1.3:
+                    continue
+                kept.append(seg.text)
+            return " ".join(kept)
         finally:
             os.unlink(path)
-
-    @staticmethod
-    def _hotword_kwargs() -> dict:
-        """Bias whisper toward the wake word when this faster-whisper supports it."""
-        try:
-            import inspect
-            from faster_whisper import WhisperModel
-            if "hotwords" in inspect.signature(WhisperModel.transcribe).parameters:
-                return {"hotwords": "Glance"}
-        except Exception:
-            pass
-        return {}
 
     def _get_model(self):
         with self._wake_lock:
