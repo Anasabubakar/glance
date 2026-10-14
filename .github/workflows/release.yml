@@ -27,7 +27,7 @@ jobs:
           sudo apt-get install -y \
             libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev \
             libdbus-1-dev libfontconfig1-dev libportaudio2 \
-            fuse libfuse2 wget
+            fuse libfuse2 wget xvfb
 
       - name: Install Python dependencies
         run: |
@@ -43,6 +43,16 @@ jobs:
         run: |
           chmod +x packaging/linux/build-linux.sh
           bash packaging/linux/build-linux.sh all
+
+      - name: Smoke-test the packaged app starts
+        run: |
+          # Catches packaging bugs (missing hidden imports) before they ship:
+          # the app must get past its imports under a virtual display.
+          xvfb-run -a bash -c 'timeout 25 dist/Glance/glance-companion > smoke.log 2>&1; true'
+          cat smoke.log
+          if grep -q "shell import failed" smoke.log; then
+            echo "::error::Packaged app failed to import its shell"; exit 1
+          fi
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
