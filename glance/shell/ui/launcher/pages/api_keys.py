@@ -5,7 +5,7 @@ API Keys page — per-provider key entry with validation, save/remove.
 import threading
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QMessageBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QMessageBox, QLineEdit,
 )
 from PyQt6.QtCore import pyqtSignal, QObject
 
@@ -83,6 +83,24 @@ class _Validator(QObject):
         self.finished.emit(self.env_key, ok, msg)
 
 
+class _CustomTester(QObject):
+    finished = pyqtSignal(bool, str)
+
+    def __init__(self, base_url: str, key: str):
+        super().__init__()
+        self.base_url, self.key = base_url.rstrip("/"), key
+
+    def run(self):
+        try:
+            import httpx
+            r = httpx.get(f"{self.base_url}/models", timeout=15,
+                          headers={"Authorization": f"Bearer {self.key or 'none'}"})
+            ok = r.status_code == 200
+            self.finished.emit(ok, "Reachable" if ok else f"HTTP {r.status_code}")
+        except Exception as e:
+            self.finished.emit(False, str(e)[:80])
+
+
 class APIKeysPage(BasePage):
     title = "API Keys"
     icon = "🔑"
@@ -129,7 +147,81 @@ class APIKeysPage(BasePage):
             self._fields[env_key] = field
             self.body_layout.addWidget(card)
 
+        self._build_custom_card()
         self.body_layout.addStretch()
+
+    # ── Bring your own endpoint (any OpenAI-compatible server) ───────────────
+
+    def _build_custom_card(self):
+        self.body_layout.addWidget(self.section_label("Custom endpoint (BYOK)"))
+        self.body_layout.addWidget(self.hint_label(
+            "Use any OpenAI-compatible server: OpenRouter, Groq, Together, LM Studio, "
+            "vLLM, or your own. Pick a vision-capable model to keep screen features."))
+        card = Card()
+        cur = self._cfg
+        self._custom_url = QLineEdit(getattr(cur, "custom_base_url", "") if cur else "")
+        self._custom_url.setPlaceholderText("Base URL, e.g. https://openrouter.ai/api/v1")
+        self._custom_model = QLineEdit(getattr(cur, "custom_model", "") if cur else "")
+        self._custom_model.setPlaceholderText("Model id, e.g. anthropic/claude-sonnet-4.5")
+        self._custom_key = KeyField("API key (optional for local servers)",
+                                    "GLANCE_CUSTOM_API_KEY",
+                                    current_value=getattr(cur, "custom_api_key", "") if cur else "")
+        for w in (self._custom_url, self._custom_model):
+            card.add_widget(w)
+        card.add_widget(self._custom_key)
+
+        row = QHBoxLayout()
+        for text, fn in (("Save & use", self._custom_save), ("Test", self._custom_test),
+                         ("Remove", self._custom_remove)):
+            b = FlatButton(text)
+            b.clicked.connect(lambda _c=False, f=fn: f())
+            row.addWidget(b)
+        row.addStretch()
+        self._custom_status = QLabel("")
+        self._custom_status.setFont(dt.FONT_CAPTION)
+        row.addWidget(self._custom_status)
+        card.add_layout(row)
+        self.body_layout.addWidget(card)
+
+    def _custom_say(self, text: str, color):
+        self._custom_status.setText(text)
+        self._custom_status.setStyleSheet(f"color: {color.name()};")
+
+    def _custom_save(self):
+        url, model = self._custom_url.text().strip(), self._custom_model.text().strip()
+        if not (url.startswith(("http://", "https://")) and model):
+            self._custom_say("Need a http(s) URL and a model id", dt.WARNING)
+            return
+        if not self._cfg:
+            return
+        self._cfg.save_env_values({"GLANCE_CUSTOM_BASE_URL": url, "GLANCE_CUSTOM_MODEL": model,
+                                   "GLANCE_CUSTOM_API_KEY": self._custom_key.get_key()})
+        self._cfg.set_active_llm("custom")
+        self._custom_say("✓ Saved — Custom is now the active provider", dt.SUCCESS)
+
+    def _custom_test(self):
+        url = self._custom_url.text().strip()
+        if not url:
+            self._custom_say("Enter a base URL first", dt.WARNING)
+            return
+        self._custom_say("Testing…", dt.TEXT_MUTED)
+        t = _CustomTester(url, self._custom_key.get_key())
+        t.finished.connect(lambda ok, msg: self._custom_say(msg, dt.SUCCESS if ok else dt.ERROR))
+        self._validators.append(t)
+        threading.Thread(target=t.run, daemon=True).start()
+
+    def _custom_remove(self):
+        if not self._cfg:
+            return
+        self._cfg.remove_env_values(["GLANCE_CUSTOM_BASE_URL", "GLANCE_CUSTOM_MODEL",
+                                     "GLANCE_CUSTOM_API_KEY"])
+        if self._cfg.llm_provider() == "custom" or \
+                __import__("os").environ.get("GLANCE_ACTIVE_LLM") == "custom":
+            self._cfg.set_active_llm("cloud")
+        self._custom_url.clear()
+        self._custom_model.clear()
+        self._custom_key.clear_key()
+        self._custom_say("Removed", dt.TEXT_MUTED)
 
     def on_activate(self):
         if not self._cfg:
