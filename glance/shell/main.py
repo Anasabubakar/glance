@@ -75,7 +75,8 @@ def main(launcher_window=None):
     # ── Core components ───────────────────────────────────────────────────────
     manager = CompanionManager()
     panel   = CompanionPanel()
-    overlay = CursorOverlay()
+    from ui.overlay_backend import create_overlay
+    overlay, overlay_note = create_overlay()
     tray    = TrayManager()
 
     # ── Wire signals ──────────────────────────────────────────────────────────
@@ -384,6 +385,8 @@ def main(launcher_window=None):
 
     # ── Show UI + start listener ──────────────────────────────────────────────
     overlay.show()        # persistent overlay (cursor follow)
+    if overlay_note:
+        tray.show_notification("Glance cursor", overlay_note)
     # Panel is hidden by default — user can open it from the tray menu if needed
     manager.start()        # begin ambient mic + wake-word scanning
 
