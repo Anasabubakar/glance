@@ -92,6 +92,8 @@ PROVIDER_LABELS = {
     "gemini":  "Gemini",
     "copilot": "Copilot",
     "ollama":  f"Ollama ({cfg.ollama_model})",
+    "custom":  "Custom (BYOK)",
+    "cloud":   "Glance Cloud",
 }
 
 # Provider model lists are fetched live from each vendor's /models endpoint
@@ -292,6 +294,10 @@ class CompanionPanel(QWidget):
                     self._model_combo.addItem(label, userData=m["id"])
             except Exception:
                 self._model_combo.addItem("default", userData="default")
+        elif provider == "custom":
+            self._model_combo.addItem(cfg.custom_model or "model", userData=cfg.custom_model)
+        elif provider == "cloud":
+            self._model_combo.addItem("glance", userData="glance")
         else:   # ollama
             self._model_combo.addItem(cfg.ollama_model, userData=cfg.ollama_model)
         self._model_combo.blockSignals(False)
