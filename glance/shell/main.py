@@ -333,10 +333,20 @@ def main(launcher_window=None):
     tray.on_diagnostics.connect(_save_diagnostics)
 
     # ── Global hotkey ─────────────────────────────────────────────────────────
-    hotkey = GlobalHotkeyMonitor(
-        on_press=manager.on_hotkey_press,
-        on_release=manager.on_hotkey_release,
-    )
+    # On GNOME the extension grabs the combo in the compositor (pynput can't see
+    # keys on Wayland); everywhere else, pynput.
+    from ui.overlay_gnome import GnomeOverlay
+    if isinstance(overlay, GnomeOverlay):
+        from hotkey_gnome import GnomeHotkeyMonitor
+        hotkey = GnomeHotkeyMonitor(
+            on_press=manager.on_hotkey_press,
+            on_release=manager.on_hotkey_release,
+        )
+    else:
+        hotkey = GlobalHotkeyMonitor(
+            on_press=manager.on_hotkey_press,
+            on_release=manager.on_hotkey_release,
+        )
     hotkey.start()
 
     # Esc = cancel current generation (kills Ollama ramble mid-stream)
