@@ -29,6 +29,7 @@ def build_messages(user_text, screenshots_b64, history, system_prompt, send_imag
 
 class CustomProvider(BaseLLMProvider):
     send_images = True
+    max_tokens = MAX_TOKENS
     max_retries = 2      # the SDK backs off and retries on 429/5xx
 
     def __init__(self, base_url: str | None = None, api_key: str | None = None,
@@ -52,7 +53,7 @@ class CustomProvider(BaseLLMProvider):
             model=model or self._model,
             messages=build_messages(user_text, screenshots_b64, history,
                                     system_prompt, self.send_images),
-            max_tokens=MAX_TOKENS,
+            max_tokens=self.max_tokens,
             stream=True,
         )
         async for chunk in stream:
