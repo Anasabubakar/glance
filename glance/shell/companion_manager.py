@@ -505,6 +505,12 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
             elif provider == "copilot":
                 from ai.github_copilot_provider import GitHubCopilotProvider
                 self._llm = GitHubCopilotProvider()
+            elif provider == "custom":
+                from ai.custom_provider import CustomProvider
+                self._llm = CustomProvider()
+            elif provider == "cloud":
+                from ai.cloud_provider import CloudProvider
+                self._llm = CloudProvider()
             else:
                 _ensure_ollama_running()
                 from ai.ollama_provider import OllamaProvider
