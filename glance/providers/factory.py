@@ -21,8 +21,14 @@ def get_provider(name: str | None = None, model: str | None = None) -> LLMProvid
     if name == "ollama":
         from .ollama import OllamaProvider
         return OllamaProvider(model=model)
+    if name == "custom":
+        from .custom import CustomProvider
+        return CustomProvider(model=model)
+    if name == "cloud":
+        from .custom import CloudProvider
+        return CloudProvider()
     if name == "heuristic":
         from .heuristic import HeuristicProvider
         return HeuristicProvider()
     raise ValueError(f"Unknown provider '{name}'. "
-                     f"Choose: claude, openai, gemini, ollama, heuristic.")
+                     f"Choose: claude, openai, gemini, ollama, custom, cloud, heuristic.")
