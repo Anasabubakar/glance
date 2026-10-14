@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtWidgets import QWidget, QApplication
+from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF
 from PyQt6.QtGui import (
     QPainter, QColor, QPen, QBrush, QPainterPath, QCursor, QFont, QPixmap,
@@ -148,12 +149,16 @@ class CursorOverlay(QWidget):
                 )
 
         # Transparent click-through, covers all monitors
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.Tool
-            | Qt.WindowType.WindowTransparentForInput
-        )
+        flags = (Qt.WindowType.FramelessWindowHint
+                 | Qt.WindowType.WindowStaysOnTopHint
+                 | Qt.WindowType.Tool
+                 | Qt.WindowType.WindowTransparentForInput)
+        # X11: make it an override-redirect window — the WM ignores it, so it is
+        # on every desktop, never in the taskbar/alt-tab, and never reordered.
+        self._x11 = QGuiApplication.platformName() == "xcb"
+        if self._x11:
+            flags |= Qt.WindowType.BypassWindowManagerHint
+        self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
@@ -167,6 +172,12 @@ class CursorOverlay(QWidget):
         self._tick_timer = QTimer(self)
         self._tick_timer.timeout.connect(self._tick)
         self._tick_timer.start(16)
+
+        # X11: clicking another window can still restack it above us; re-raise.
+        if self._x11:
+            self._raise_timer = QTimer(self)
+            self._raise_timer.timeout.connect(self.raise_)
+            self._raise_timer.start(700)
 
         # Release bubble / pointing
         self._lock_timer = QTimer(self)
