@@ -71,7 +71,17 @@ hiddenimports += [
     "config", "main", "companion_manager", "hotkey",
     "memory_store", "google_workspace",
     "keyboard", "pynput", "dotenv",
+    # pynput picks its backend with importlib at runtime. The CI build machine has
+    # no X display, so PyInstaller can't import pynput to discover these — without
+    # them the packaged app exits at startup with "this platform is not supported".
+    "pynput.keyboard._base", "pynput.keyboard._xorg", "pynput.keyboard._dummy",
+    "pynput.mouse._base", "pynput.mouse._xorg", "pynput.mouse._dummy",
+    "pynput._util", "pynput._util.xorg", "pynput._util.xorg_keysyms",
 ]
+try:
+    hiddenimports += collect_submodules("Xlib")   # python-xlib: pynput's X11 backend
+except Exception as e:
+    print(f"[glance-linux.spec] collect_submodules(Xlib) skipped: {e}")
 for pkg in ("ai", "audio", "ui", "screen", "skills", "tutor_features"):
     try:
         hiddenimports += collect_submodules(pkg)
