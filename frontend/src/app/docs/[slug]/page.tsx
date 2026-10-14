@@ -437,6 +437,13 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-2" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.2 — Dashboard fix</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Fixed a startup crash that stopped the dashboard from opening in v0.3.0 and v0.3.1</li>
+        <li>• The Custom endpoint (BYOK) form is reachable again</li>
+      </ul>
+
       <h2 id="v0-3-1" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.1 — Always-on-top cursor on GNOME</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
