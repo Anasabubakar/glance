@@ -9,15 +9,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Anasabubakar/glance/releases/latest"><strong>Download v0.2.1</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quickstart">Quickstart</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#new-in-v020">What's New</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#providers">Providers</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#building-from-source">Build from source</a>
+  <a href="https://github.com/Anasabubakar/glance/releases/latest"><strong>Download v0.3.0</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quickstart">Quickstart</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#new-in-v030">What's New</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#providers">Providers</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#building-from-source">Build from source</a>
 </p>
 
 <br>
 
 <p align="center">
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.2.1/Setup-Glance.exe">⬇ Windows (.exe)</a>&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.2.1/glance_0.2.1_amd64.deb">⬇ Linux (.deb)</a>&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.2.1/Glance-0.2.1-x86_64.AppImage">⬇ Linux (AppImage)</a>
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.0/Setup-Glance.exe">⬇ Windows (.exe)</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.0/glance_0.3.0_amd64.deb">⬇ Linux (.deb)</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.0/Glance-0.3.0-x86_64.AppImage">⬇ Linux (AppImage)</a>
 </p>
 
 <p align="center">
@@ -29,6 +29,21 @@
 Hold a hotkey, talk to your computer, let go. Glance captures your screen, listens to what you said, and responds with voice and a pointing cursor that flies to exactly what you asked about.
 
 It works with **Claude**, **OpenAI**, **Gemini**, **GitHub Copilot**, or fully offline with **Ollama** — no API keys required for local mode.
+
+---
+
+## New in v0.3.0
+
+### ☁️ Free Glance Cloud: no download, no key
+
+Glance now works out of the box. With no API key set, it uses **Glance Cloud**, a free hosted text model, so you no longer need to install Ollama or pull a multi-GB model first. A personal rate-limited key is created automatically on first use.
+
+- Text only: screenshots are not uploaded. For screen-aware features use local Ollama or your own vision model.
+- Shared and rate-limited (about 6 requests/minute per user). Set `GLANCE_NO_CLOUD=1` to opt out.
+
+### 🔌 Bring your own endpoint
+
+Point Glance at **any OpenAI-compatible server** (OpenRouter, Groq, Together, LM Studio, vLLM, your own) from **API Keys → Custom endpoint**, or via `GLANCE_CUSTOM_BASE_URL`, `GLANCE_CUSTOM_API_KEY` and `GLANCE_CUSTOM_MODEL`.
 
 ---
 
@@ -68,7 +83,7 @@ Glance now opens a **premium control dashboard** before launching the companion.
 
 ### Windows
 
-1. Download [**Setup-Glance.exe**](https://github.com/Anasabubakar/glance/releases/download/v0.2.1/Setup-Glance.exe)
+1. Download [**Setup-Glance.exe**](https://github.com/Anasabubakar/glance/releases/download/v0.3.0/Setup-Glance.exe)
 2. Run the installer
 3. Launch Glance from the Start menu or desktop shortcut
 4. The **Dashboard** opens — review your setup, then click **"Start Glance"**
@@ -83,8 +98,8 @@ Choose your format:
 **Debian / Ubuntu (recommended):**
 
 ```bash
-wget https://github.com/Anasabubakar/glance/releases/download/v0.2.1/glance_0.2.1_amd64.deb
-sudo apt install ./glance_0.2.1_amd64.deb
+wget https://github.com/Anasabubakar/glance/releases/download/v0.3.0/glance_0.3.0_amd64.deb
+sudo apt install ./glance_0.3.0_amd64.deb
 glance-companion
 ```
 
@@ -93,9 +108,9 @@ The .deb integrates with your system — adds a desktop entry, icons, and file a
 **Any distro (AppImage):**
 
 ```bash
-wget https://github.com/Anasabubakar/glance/releases/download/v0.2.1/Glance-0.2.1-x86_64.AppImage
-chmod +x Glance-0.2.1-x86_64.AppImage
-./Glance-0.2.1-x86_64.AppImage
+wget https://github.com/Anasabubakar/glance/releases/download/v0.3.0/Glance-0.3.0-x86_64.AppImage
+chmod +x Glance-0.3.0-x86_64.AppImage
+./Glance-0.3.0-x86_64.AppImage
 ```
 
 No installation required. Just download, make executable, and run. Works on any Linux distribution.
