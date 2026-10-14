@@ -9,6 +9,8 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -41,7 +43,10 @@ const IFACE = `<node>
       <arg type="d" direction="in" name="x"/><arg type="d" direction="in" name="y"/>
       <arg type="s" direction="in" name="text"/><arg type="d" direction="in" name="ttl"/></method>
     <method name="ClearAnnotations"/>
+    <method name="SetHotkey"><arg type="s" direction="in" name="accel"/></method>
     <method name="GetState"><arg type="s" direction="out" name="json"/></method>
+    <signal name="HotkeyPressed"/>
+    <signal name="HotkeyReleased"/>
     <property name="Version" type="u" access="read"/>
   </interface>
 </node>`;
@@ -74,9 +79,22 @@ export default class GlanceCursor extends Extension {
         this._monitorsId = Main.layoutManager.connect(
             'monitors-changed', () => this._resize());
         this._resize();
+
+        // Global push-to-talk: the compositor sees every key, which apps on
+        // Wayland cannot. The app sends the combo via SetHotkey().
+        this._action = 0;
+        this._held = false;
+        this._accelId = global.display.connect(
+            'accelerator-activated', (_d, action) => {
+                if (action === this._action) this._hotkeyDown();
+            });
     }
 
     disable() {
+        this._releaseHotkey(false);
+        this._ungrab();
+        if (this._accelId) global.display.disconnect(this._accelId);
+        this._accelId = 0;
         if (this._monitorsId)
             Main.layoutManager.disconnect(this._monitorsId);
         if (this._watchId) Gio.bus_unwatch_name(this._watchId);
@@ -243,6 +261,107 @@ export default class GlanceCursor extends Extension {
             }
         }
         cr.$dispose();
+    }
+
+
+    // ── global hotkey (push-to-talk) ─────────────────────────────────────
+    _ungrab() {
+        if (this._action) {
+            try {
+                Main.wm.allowKeybinding(Meta.external_binding_name_for_action(this._action), Shell.ActionMode.NONE);
+                global.display.ungrab_accelerator(this._action);
+            } catch (e) { console.error('glance-cursor: ungrab failed', e); }
+            this._action = 0;
+        }
+    }
+
+    _sym(name) { return Clutter[`KEY_${name}`] ?? 0; }
+
+    // "ctrl+alt+m" -> {accel: "<Control><Alt>m", mods: Set(keysyms), key: keysym}
+    _parseCombo(spec) {
+        const names = {ctrl: 'Control', control: 'Control', alt: 'Alt', shift: 'Shift',
+                       win: 'Super', super: 'Super', cmd: 'Super'};
+        const modSyms = {Control: ['Control_L', 'Control_R'], Alt: ['Alt_L', 'Alt_R', 'ISO_Level3_Shift'],
+                         Shift: ['Shift_L', 'Shift_R'], Super: ['Super_L', 'Super_R']};
+        const parts = spec.toLowerCase().split('+').map(p => p.trim()).filter(Boolean);
+        let accel = '', syms = new Set(), mask = 0;
+        for (const p of parts.slice(0, -1)) {
+            const n = names[p];
+            if (!n) return null;
+            accel += `<${n}>`;
+            for (const m of modSyms[n]) syms.add(this._sym(m));
+        }
+        const keyName = parts[parts.length - 1];
+        if (!keyName) return null;
+        accel += keyName;
+        const cap = keyName[0].toUpperCase() + keyName.slice(1);
+        for (const k of [keyName, keyName.toUpperCase(), cap]) {
+            const v = this._sym(k);
+            if (v) syms.add(v);
+        }
+        syms.delete(0);
+        return {accel, syms, mods: parts.slice(0, -1).map(p => names[p])};
+    }
+
+    SetHotkey(spec) {
+        try { this._setHotkey(spec); } catch (e) { console.error('glance-cursor: SetHotkey failed', e); }
+    }
+
+    _setHotkey(spec) {
+        this._releaseHotkey(false);
+        this._ungrab();
+        if (!spec) return;
+        const combo = this._parseCombo(spec);
+        if (!combo) { console.error(`glance-cursor: bad hotkey '${spec}'`); return; }
+        const action = global.display.grab_accelerator(combo.accel, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT);
+        if (action === Meta.KeyBindingFlags.NONE || action === 0) {
+            console.error(`glance-cursor: could not grab '${combo.accel}' (already in use?)`);
+            return;
+        }
+        this._action = action;
+        this._combo = combo;
+        Main.wm.allowKeybinding(Meta.external_binding_name_for_action(action),
+            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW);
+    }
+
+    _hotkeyDown() {
+        if (!this._shown) return;
+        // Auto-repeat is filtered out, so a second activation while held is a
+        // deliberate second press: treat it as "stop" (the stage never reports
+        // the release of a grabbed key, only of the modifiers).
+        if (this._held) { this._releaseHotkey(true); return; }
+        this._held = true;
+        this._dbus.emit_signal('HotkeyPressed', null);
+        const syms = this._combo.syms;
+        // Release = any key of the combo goes up (seen on the stage) ...
+        this._relEvent = global.stage.connect('captured-event', (_a, ev) => {
+            if (ev.type() === Clutter.EventType.KEY_RELEASE && syms.has(ev.get_key_symbol()))
+                this._releaseHotkey(true);
+            return Clutter.EVENT_PROPAGATE;
+        });
+        // ... or, as a backstop, a required modifier is no longer down, or 90 s pass.
+        const need = this._combo.mods.reduce((m, n) => m | ({
+            Control: Clutter.ModifierType.CONTROL_MASK, Alt: Clutter.ModifierType.MOD1_MASK,
+            Shift: Clutter.ModifierType.SHIFT_MASK, Super: Clutter.ModifierType.SUPER_MASK}[n] || 0), 0);
+        const t0 = GLib.get_monotonic_time();
+        this._relPoll = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 40, () => {
+            const [, , mods] = global.get_pointer();
+            if ((mods & need) !== need || GLib.get_monotonic_time() - t0 > 90e6) {
+                this._relPoll = 0;
+                this._releaseHotkey(true);
+                return GLib.SOURCE_REMOVE;
+            }
+            return GLib.SOURCE_CONTINUE;
+        });
+    }
+
+    _releaseHotkey(emit) {
+        if (this._relEvent) { global.stage.disconnect(this._relEvent); this._relEvent = 0; }
+        if (this._relPoll) { GLib.source_remove(this._relPoll); this._relPoll = 0; }
+        if (this._held) {
+            this._held = false;
+            if (emit) this._dbus.emit_signal('HotkeyReleased', null);
+        }
     }
 
     // ── D-Bus methods ─────────────────────────────────────────────────────
