@@ -149,8 +149,22 @@ glance run
 | OpenAI | Yes | GPT-4o and later models with vision. |
 | Gemini | Yes | Google AI Studio. Free tier available. |
 | GitHub Copilot | Copilot seat | Uses your existing subscription. Free models included. |
+| Glance Cloud | No | Free hosted text model, the default when no key is set. No download. Text only (no screenshots), shared and rate-limited. |
+| Custom (BYOK) | Yours | Any OpenAI-compatible endpoint: OpenRouter, Groq, Together, LM Studio, vLLM. Set it up under API Keys. |
 
 One key is enough. Pick whichever provider you prefer, or use Ollama for a completely free and offline experience.
+
+### Bring your own endpoint
+
+Open **API Keys → Custom endpoint**, or set these in your `.env`:
+
+```bash
+GLANCE_CUSTOM_BASE_URL=https://openrouter.ai/api/v1
+GLANCE_CUSTOM_API_KEY=sk-...
+GLANCE_CUSTOM_MODEL=anthropic/claude-sonnet-4.5   # pick a vision model to keep screen features
+```
+
+Set `GLANCE_NO_CLOUD=1` to stop Glance falling back to the hosted free tier.
 
 ### Ollama setup
 
