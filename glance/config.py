@@ -41,6 +41,8 @@ def active_provider() -> str:
         return "openai"
     if os.environ.get("GOOGLE_API_KEY"):
         return "gemini"
+    if os.environ.get("GLANCE_CUSTOM_BASE_URL") and os.environ.get("GLANCE_CUSTOM_MODEL"):
+        return "custom"
     return "ollama"
 
 
