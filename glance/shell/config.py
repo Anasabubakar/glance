@@ -91,11 +91,16 @@ class Config:
             return "gemini"
         if self.custom_ready():
             return "custom"
-        # No key anywhere: use the free hosted model instead of forcing a
-        # multi-GB local download. GLANCE_NO_CLOUD=1 restores the old default.
-        if os.getenv("GLANCE_NO_CLOUD", "").strip() not in ("1", "true", "yes"):
+        # No key anywhere: Glance Cloud (if switched on), else local Ollama.
+        if self.cloud_enabled():
             return "cloud"
         return "ollama"
+
+    @staticmethod
+    def cloud_enabled() -> bool:
+        """Glance Cloud (the free hosted model) is paused. The code and server are
+        kept; set GLANCE_CLOUD=1 to bring it back."""
+        return os.getenv("GLANCE_CLOUD", "").strip().lower() in ("1", "true", "yes")
 
     def custom_ready(self) -> bool:
         return bool(self.custom_base_url and self.custom_model)
@@ -117,7 +122,8 @@ class Config:
             out.append("gemini")
         if self.custom_ready():
             out.append("custom")
-        out.append("cloud")    # free hosted tier, key auto-minted on first use
+        if self.cloud_enabled():
+            out.append("cloud")    # free hosted tier (paused unless GLANCE_CLOUD=1)
         out.append("ollama")   # always available if the daemon is running
         return out
 
@@ -265,13 +271,13 @@ class Config:
             return active
         p = self.llm_provider()
         if p == "claude":
-            return os.environ.get("GLANCE_VISION_MODEL", "claude-sonnet-5")
+            return os.environ.get("GLANCE_VISION_MODEL", "claude-haiku-4-5-20251001")
         if p == "openai":
-            return os.environ.get("GLANCE_VISION_MODEL", "gpt-4o")
+            return os.environ.get("GLANCE_VISION_MODEL", "gpt-4o-mini")
         if p == "gemini":
             return os.environ.get("GLANCE_VISION_MODEL", "auto")
         if p == "copilot":
-            return os.environ.get("GLANCE_VISION_MODEL", "gpt-4o")
+            return os.environ.get("GLANCE_VISION_MODEL", "gpt-4o-mini")
         if p == "custom":
             return os.environ.get("GLANCE_VISION_MODEL", self.custom_model)
         if p == "cloud":

@@ -26,3 +26,25 @@ def test_env_overrides_default(monkeypatch):
 def test_groups_cover_every_pref():
     flat = [p.env for _g, items in prefs.groups() for p in items]
     assert sorted(flat) == sorted(p.env for p in prefs.PREFS)
+
+
+def test_cloud_is_paused_and_models_are_fast(monkeypatch):
+    import sys
+    sys.path.insert(0, "glance/shell")
+    from config import Config
+    for k in ("GLANCE_CLOUD", "GLANCE_ACTIVE_LLM", "GLANCE_ACTIVE_MODEL", "GLANCE_VISION_MODEL"):
+        monkeypatch.delenv(k, raising=False)
+    c = Config()
+    c.anthropic_api_key = c.openai_api_key = c.google_api_key = None
+    c.custom_base_url = c.custom_model = ""
+    assert "cloud" not in c.available_llm_providers()
+    monkeypatch.setenv("GLANCE_ACTIVE_LLM", "cloud")      # stale saved choice is ignored
+    assert c.llm_provider() != "cloud"
+    monkeypatch.setenv("GLANCE_CLOUD", "1")
+    assert "cloud" in c.available_llm_providers()
+    monkeypatch.delenv("GLANCE_CLOUD")
+    monkeypatch.delenv("GLANCE_ACTIVE_LLM")
+    c.openai_api_key = "x"
+    assert c.vision_model() == "gpt-4o-mini"
+    c.openai_api_key, c.anthropic_api_key = None, "x"
+    assert "haiku" in c.vision_model()
