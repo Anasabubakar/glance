@@ -27,6 +27,41 @@ from screen.capture import capture_all_screens, no_screen_message
 from ui.panel import AppState
 
 
+
+def _parse_action(full: str):
+    """First JSON action object in a model reply (tolerates fences, prose, lists)."""
+    import json as _json
+    t = (full or "").strip()
+    m = re.search(r"```(?:json)?\s*(.*?)```", t, re.S)
+    if m:
+        t = m.group(1).strip()
+    dec = _json.JSONDecoder()
+    for i, ch in enumerate(t):
+        if ch in "{[":
+            try:
+                obj, _ = dec.raw_decode(t[i:])
+            except ValueError:
+                continue
+            if isinstance(obj, list):
+                obj = next((o for o in obj if isinstance(o, dict) and o.get("action")), None)
+            if isinstance(obj, dict) and obj.get("action"):
+                return obj
+    return None
+
+
+def _speakable(text: str, fallback: str = "Sorry, I couldn't finish that.") -> str:
+    """Never read code aloud: JSON or tool-call text becomes its plain-English label."""
+    t = (text or "").strip()
+    if not t:
+        return fallback
+    codey = (t[0] in "{[`" or re.match(r"(action|click|left_click)\b", t, re.I) or re.search(r'"\s*(action|x|y|content|target)\s*"\s*:', t)
+             or re.search(r"\b(action|click)\b\s*[:=(@]", t, re.I))
+    if codey:
+        m = re.search(r'"text"\s*:\s*"([^"{}]{3,160})"', t)
+        return m.group(1) if m else fallback
+    return t[:200]
+
+
 class ActionsMixin:
     def _get_actuator(self):
         if getattr(self, "_actuator", None) is None:
@@ -871,12 +906,18 @@ class ActionsMixin:
                 _resize_jpeg(base64.b64decode(shot.base64_jpeg), tw, th)).decode("ascii")
             return shot, b64
 
+        # Gemini is trained to point on a normalized 0-1000 grid and ignores pixel
+        # instructions, so its clicks landed far from the target. Ask for the grid it
+        # knows, and convert here.
+        norm = cfg.llm_provider() == "gemini"
+        gw, gh = (1000, 1000) if norm else (tw, th)
+
         def to_coords(shot, cx, cy):
-            cx = max(0.0, min(float(cx), tw)); cy = max(0.0, min(float(cy), th))
+            cx = max(0.0, min(float(cx), gw)); cy = max(0.0, min(float(cy), gh))
             pw = shot.physical_width or shot.width
             ph = shot.physical_height or shot.height
-            vx = cx / tw * pw + shot.physical_left
-            vy = cy / th * ph + shot.physical_top
+            vx = cx / gw * pw + shot.physical_left
+            vy = cy / gh * ph + shot.physical_top
             scale = shot.dpi_scale if shot.dpi_scale > 0 else 1.0
             return int(round(vx / scale)), int(round(vy / scale)), int(round(vx)), int(round(vy))
 
@@ -892,7 +933,17 @@ class ActionsMixin:
             '  {"action":"launch_app","name":"notepad","text":"opening notepad"}\n'
             '  {"action":"open_url","target":"gmail","text":"opening email"}\n'
             '  {"action":"done","text":"All done — enjoy!"}\n\n'
-            f"Screen resolution: {tw}x{th}. Coordinates are pixels from top-left.\n"
+            + ("Coordinates use a normalized 1000x1000 grid over the whole screenshot: "
+               "x=0 is the left edge, x=1000 the right edge, y=0 the top, y=1000 the "
+               "bottom. Aim at the CENTER of the target.\n" if norm else
+               f"Screen resolution: {tw}x{th}. Coordinates are pixels from top-left.\n")
+            + "Reply with exactly ONE JSON object and nothing else. The \"text\" field is a "
+            "short plain-English phrase for the user (never code).\n"
+            "Prefer keyboard shortcuts when one does the job: close tab ctrl+w, close "
+            "window alt+f4, minimize window super+h, maximize super+Up, switch window "
+            "alt+Tab, new tab ctrl+t, address bar ctrl+l, save ctrl+s, copy/paste ctrl+c/ctrl+v.\n"
+            "Only launch_app when the task is to open an app. If the task is already done, "
+            "or you cannot do it, use 'done' and say so honestly.\n"
             "Work ONE action at a time. After each, you'll get a fresh screenshot.\n"
             "When finished, use the 'done' action with a short spoken summary.\n"
             "SAFETY: do NOT send, delete, buy, or post unless the task asks for it."
@@ -905,7 +956,8 @@ class ActionsMixin:
         self._cancel_flag = False
         self._emit_state(AppState.THINKING)
         self._caption(f"On it: {instruction.strip()[:60]}", hold=0)   # acknowledge at once
-        MAX_STEPS = 12
+        MAX_STEPS = 8
+        recent: list = []
         try:
             for _ in range(MAX_STEPS):
                 if self._cancel_flag:
@@ -920,27 +972,17 @@ class ActionsMixin:
                     model=cfg.vision_model(),
                 ):
                     full += chunk
-                # Parse JSON action from response
-                text = full.strip()
-                if "```" in text:
-                    text = text.split("```")[1].strip()
-                    if text.startswith("json"):
-                        text = text[4:].strip()
-                try:
-                    action = _json.loads(text)
-                except Exception:
-                    # Try to find JSON in the response
-                    import re as _re
-                    m = _re.search(r'\{[^}]+\}', text)
-                    if m:
-                        try:
-                            action = _json.loads(m.group())
-                        except Exception:
-                            await self._say_task(text[:200])
-                            break
-                    else:
-                        await self._say_task(text[:200])
-                        break
+                action = _parse_action(full)
+                if action is None:
+                    await self._say_task(_speakable(full, "Sorry, I got confused and stopped."))
+                    break
+                # Same step three times in a row means it is stuck: stop, don't flail.
+                sig = (str(action.get("action")), str(action.get("x")), str(action.get("y")),
+                       str(action.get("content") or action.get("name") or action.get("target")))
+                recent.append(sig)
+                if len(recent) >= 3 and recent[-1] == recent[-2] == recent[-3]:
+                    await self._say_task("I keep trying the same thing and it isn't working, so I'll stop.")
+                    break
 
                 act = (action.get("action") or "").lower()
                 label = action.get("text", "")
@@ -979,7 +1021,7 @@ class ActionsMixin:
                     _, _, px, py = to_coords(shot, x, y)
                     self._exec_action(actuator, "scroll", px, py, "")
                 else:
-                    await self._say_task(label or full[:100])
+                    await self._say_task(_speakable(label or full, "Sorry, I couldn't do that."))
                     break
 
                 opened_url = act == "open_url"
