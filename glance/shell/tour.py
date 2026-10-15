@@ -131,6 +131,8 @@ class TourMixin:
         shot = shots[idx] if 0 <= idx < len(shots) else shots[0]
         w = shot.width or 1
         h = shot.height or 1
+        if cfg.llm_provider() == "gemini":     # Gemini points on a normalized 0-1000 grid
+            cx, cy = float(cx) / 1000.0 * w, float(cy) / 1000.0 * h
         cx = max(0.0, min(float(cx), w)); cy = max(0.0, min(float(cy), h))
         scale = shot.dpi_scale if shot.dpi_scale > 0 else 1.0
         pw = shot.physical_width or w

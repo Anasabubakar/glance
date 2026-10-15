@@ -1106,6 +1106,10 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
                     "\n\n" + self._memory.facts_block() if self._memory.facts else "")
                     + self._bg_block(),
             )
+            if cfg.llm_provider() == "gemini" and images_b64:
+                system += ("\n\nCOORDINATES (overrides any pixel instruction above): for every "
+                           "[POINT:X,Y:...] tag use a normalized 0-1000 grid over the screenshot: "
+                           "X=0 left edge, X=1000 right edge, Y=0 top, Y=1000 bottom.")
             if getattr(self, "_no_shot_note", False):
                 system += ("\n\nNOTE: no screenshot is available for this request. Do not "
                            "claim to see the screen; say you can't see it right now.")
