@@ -22,9 +22,9 @@ class LauncherWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Glance — Dashboard")
-        self.setMinimumSize(960, 640)
-        self.resize(1100, 720)
+        self.setWindowTitle("Dashboard")
+        self.setMinimumSize(980, 660)
+        self.resize(1180, 780)
         self._companion_running = False
         self._fade_anim = None
         self._enter_anim = None
@@ -34,25 +34,12 @@ class LauncherWindow(QMainWindow):
         if not icon.isNull():
             self.setWindowIcon(icon)
 
-        # ── Base stylesheet ──────────────────────────────────────────────
-        self.setStyleSheet(f"""
-            QMainWindow {{
-                background: {dt.BG_DEEP.name()};
-            }}
-            QWidget {{
-                background: transparent;
-                color: {dt.TEXT_PRIMARY.name()};
-            }}
-            QLabel {{
-                background: transparent;
-            }}
-            *:focus {{
-                outline: none;
-            }}
-            QPushButton:focus {{
-                border: 1px solid {dt.BRAND_INDIGO.name()};
-            }}
-        """)
+        from PyQt6.QtWidgets import QApplication
+        QApplication.instance().setFont(dt.font(14))
+
+        # ── Base stylesheet: the design system's global rules ───────────────
+        self.setStyleSheet(dt.APP_QSS + dt.arrow_qss() +
+                           f"QMainWindow {{ background: {dt.BG_DEEP.name()}; }}")
 
         # ── Central widget ───────────────────────────────────────────────
         central = QWidget()
@@ -68,7 +55,7 @@ class LauncherWindow(QMainWindow):
 
         # Content stack
         self._stack = QStackedWidget()
-        self._stack.setStyleSheet(f"background: {dt.BG_DEEP.name()};")
+        self._stack.setStyleSheet(f"QStackedWidget {{ background: {dt.BG_DEEP.name()}; }}")
         layout.addWidget(self._stack, 1)
 
         # ── Register pages ───────────────────────────────────────────────
@@ -88,43 +75,29 @@ class LauncherWindow(QMainWindow):
             last = "home"
         self._navigate(last)
 
+    # Old page keys that now live inside a hub tab: key -> (hub key, tab index)
+    _ALIASES = {"ollama": ("models", 1), "downloads": ("models", 1), "workspace": ("extensions", 1),
+                "diagnostics": ("logs", 1), "cache": ("security", 1), "advanced": ("security", 2),
+                "updates": ("about", 1), "providers": ("api_keys", 0)}
+
     def _register_pages(self):
         from .pages.home import HomePage
         from .pages.api_keys import APIKeysPage
-        from .pages.providers import ProvidersPage
         from .pages.settings import SettingsPage
-        from .pages.models import ModelsPage
-        from .pages.ollama import OllamaPage
-        from .pages.extensions import ExtensionsPage
-        from .pages.workspace import WorkspacePage
-        from .pages.updates import UpdatesPage
-        from .pages.logs import LogsPage
-        from .pages.diagnostics import DiagnosticsPage
-        from .pages.cache import CachePage
         from .pages.memory import MemoryPage
-        from .pages.downloads import DownloadsPage
-        from .pages.security import SecurityPage
-        from .pages.about import AboutPage
-        from .pages.advanced import AdvancedPage
+        from .pages.hubs import build_hubs
 
+        hubs = build_hubs()
         pages = [
-            ("home",        HomePage(self)),
-            ("api_keys",    APIKeysPage(self)),
-            ("providers",   ProvidersPage(self)),
-            ("settings",    SettingsPage(self)),
-            ("models",      ModelsPage(self)),
-            ("ollama",      OllamaPage(self)),
-            ("extensions",  ExtensionsPage(self)),
-            ("workspace",   WorkspacePage(self)),
-            ("updates",     UpdatesPage(self)),
-            ("logs",        LogsPage(self)),
-            ("diagnostics", DiagnosticsPage(self)),
-            ("cache",       CachePage(self)),
-            ("memory",      MemoryPage(self)),
-            ("downloads",   DownloadsPage(self)),
-            ("security",    SecurityPage(self)),
-            ("about",       AboutPage(self)),
-            ("advanced",    AdvancedPage(self)),
+            ("home",       HomePage(self)),
+            ("api_keys",   APIKeysPage(self)),
+            ("models",     hubs["models"](self)),
+            ("settings",   SettingsPage(self)),
+            ("memory",     MemoryPage(self)),
+            ("extensions", hubs["extensions"](self)),
+            ("logs",       hubs["logs"](self)),
+            ("security",   hubs["security"](self)),
+            ("about",      hubs["about"](self)),
         ]
         for key, page in pages:
             self._pages[key] = page
@@ -132,9 +105,14 @@ class LauncherWindow(QMainWindow):
             self._stack.addWidget(page)
 
     def _navigate(self, key: str):
+        tab = None
+        if key in self._ALIASES:                    # a sub-page that is now a hub tab
+            key, tab = self._ALIASES[key]
         page = self._pages.get(key)
         if not page:
             return
+        if tab is not None and hasattr(page, "set_tab"):
+            page.set_tab(tab)
 
         # If already on this page, just re-activate
         if self._stack.currentWidget() is page:
@@ -142,19 +120,8 @@ class LauncherWindow(QMainWindow):
                 page.on_activate()
             return
 
-        # Fade-in transition
-        effect = QGraphicsOpacityEffect(page)
-        page.setGraphicsEffect(effect)
-        self._fade_anim = QPropertyAnimation(effect, b"opacity")
-        self._fade_anim.setDuration(150)
-        self._fade_anim.setStartValue(0.0)
-        self._fade_anim.setEndValue(1.0)
-        self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self._fade_anim.finished.connect(lambda: page.setGraphicsEffect(None))
-
         self._stack.setCurrentWidget(page)
         self._sidebar.set_active(key)
-        self._fade_anim.start()
 
         if hasattr(page, "on_activate"):
             page.on_activate()
@@ -177,6 +144,7 @@ class LauncherWindow(QMainWindow):
         home = self._pages.get("home")
         if home and hasattr(home, "set_companion_running"):
             home.set_companion_running(True)
+        self._sidebar.set_running(True)
 
         self.hide()
 
@@ -194,6 +162,7 @@ class LauncherWindow(QMainWindow):
 
     def set_companion_running(self, running: bool):
         self._companion_running = running
+        self._sidebar.set_running(running)
         home = self._pages.get("home")
         if home and hasattr(home, "set_companion_running"):
             home.set_companion_running(running)

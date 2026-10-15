@@ -24,7 +24,7 @@ def show_launcher() -> int:
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("Glance")
-    app.setApplicationDisplayName("Glance — AI Desktop Companion")
+    app.setApplicationDisplayName("Glance")
     app.setApplicationVersion("1.0.0")
 
     # Set app-wide icon

@@ -1,110 +1,140 @@
 """
-page_base.py — Enhanced base class for every launcher page.
+page_base.py — the template every dashboard page is built on.
 
-Provides standard header, scrollable body, section helpers, and a fade-in
-animation when the page becomes active.
+A header (icon tile, title, subtitle, optional actions) above a scrolling body
+that is a single centred column of readable width. Pages only add widgets to
+``self.body_layout``; spacing, margins and typography come from here.
 """
 
 from __future__ import annotations
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame,
-    QSizePolicy,
-)
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QFrame, QHBoxLayout, QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
+)
 
 from . import design_tokens as dt
+from . import icons
+from .widgets import IconTile
 
 
 class BasePage(QWidget):
-    """Subclass, set ``title``, ``icon``, and ``subtitle``, then add widgets
-    to ``self.body_layout``."""
+    """Subclass, set ``title``, ``icon`` (an icons.py name) and ``subtitle``."""
 
     title: str = ""
-    icon: str = ""
+    icon: str = "info"
     subtitle: str = ""
+
+    _embed_next = False
+
+    @classmethod
+    def embedded(cls, *args, **kwargs):
+        """Build this page WITHOUT its own header/scroll, to live inside a hub tab."""
+        BasePage._embed_next = True
+        try:
+            return cls(*args, **kwargs)
+        finally:
+            BasePage._embed_next = False
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
-        # Root vertical layout — header + separator + scrollable body
+        if BasePage._embed_next:
+            BasePage._embed_next = False
+            root = QVBoxLayout(self)
+            root.setContentsMargins(0, 0, 0, 0)
+            self.header_actions = QHBoxLayout()
+            self.body = QWidget()
+            self.body_layout = QVBoxLayout(self.body)
+            self.body_layout.setContentsMargins(0, 0, 0, 0)
+            self.body_layout.setSpacing(16)
+            self.body_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+            root.addWidget(self.body)
+            self._title_label = None
+            self._loading = False
+            return
         root = QVBoxLayout(self)
-        root.setContentsMargins(dt.PAGE_MARGIN_LR, dt.PAGE_MARGIN_T,
-                                dt.PAGE_MARGIN_LR, dt.PAGE_MARGIN_B)
+        root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ── Header ─────────────────────────────────────────────────────
+        # ── Header (full width, content-width inner column) ─────────────────
+        header_wrap = QWidget()
+        hw = QHBoxLayout(header_wrap)
+        hw.setContentsMargins(dt.PAGE_MARGIN_LR, dt.PAGE_MARGIN_T, dt.PAGE_MARGIN_LR, 20)
+        hw.addStretch(1)
         header = QWidget()
-        header_lay = QVBoxLayout(header)
-        header_lay.setContentsMargins(0, 0, 0, 16)
-        header_lay.setSpacing(4)
-
-        title_text = f"{self.icon}  {self.title}" if self.icon else self.title
-        self._title_label = QLabel(title_text)
+        header.setMaximumWidth(dt.CONTENT_MAX_W)
+        header.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        hl = QHBoxLayout(header)
+        hl.setContentsMargins(0, 0, 0, 0)
+        hl.setSpacing(16)
+        name = self.icon if self.icon in icons.names() else "info"
+        hl.addWidget(IconTile(name, 44), 0, Qt.AlignmentFlag.AlignTop)
+        text_col = QVBoxLayout()
+        text_col.setSpacing(4)
+        self._title_label = QLabel(self.title)
         self._title_label.setFont(dt.FONT_PAGE_TITLE)
-        self._title_label.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()};")
-        header_lay.addWidget(self._title_label)
-
+        text_col.addWidget(self._title_label)
         if self.subtitle:
             sub = QLabel(self.subtitle)
-            sub.setFont(dt.FONT_CAPTION)
+            sub.setFont(dt.font(14))
             sub.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
             sub.setWordWrap(True)
-            header_lay.addWidget(sub)
+            text_col.addWidget(sub)
+        hl.addLayout(text_col, 1)
+        # Optional right-aligned actions: pages add buttons to this layout.
+        self.header_actions = QHBoxLayout()
+        self.header_actions.setSpacing(8)
+        hl.addLayout(self.header_actions)
+        hw.addWidget(header, 100)
+        hw.addStretch(1)
+        root.addWidget(header_wrap)
 
-        root.addWidget(header)
-
-        # ── Separator ──────────────────────────────────────────────────
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: rgba(255,255,255,0.06);")
-        sep.setFixedHeight(1)
-        root.addWidget(sep)
-
-        # ── Scrollable body ─────────────────────────────────────────────
+        # ── Scrolling body ──────────────────────────────────────────────────
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet(dt.SCROLLBAR_QSS)
-        # Let the scroll area expand vertically
-        scroll.setSizePolicy(QSizePolicy.Policy.Expanding,
-                             QSizePolicy.Policy.Expanding)
+        scroll.setStyleSheet(dt.SCROLLBAR_QSS + "QScrollArea > QWidget > QWidget { background: transparent; }")
+        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+        canvas = QWidget()
+        cl = QHBoxLayout(canvas)
+        cl.setContentsMargins(dt.PAGE_MARGIN_LR, 0, dt.PAGE_MARGIN_LR, dt.PAGE_MARGIN_B)
+        cl.addStretch(1)
         self.body = QWidget()
+        self.body.setMaximumWidth(dt.CONTENT_MAX_W)
+        self.body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.body_layout = QVBoxLayout(self.body)
-        self.body_layout.setContentsMargins(0, 16, 0, 8)
+        self.body_layout.setContentsMargins(0, 0, 0, 0)
         self.body_layout.setSpacing(16)
         self.body_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        cl.addWidget(self.body, 100)
+        cl.addStretch(1)
+        scroll.setWidget(canvas)
+        root.addWidget(scroll, 1)
 
-        scroll.setWidget(self.body)
-        root.addWidget(scroll, 1)   # 1 = stretch factor
-
-        # ── Loading overlay state ───────────────────────────────────────
         self._loading = False
 
     def on_activate(self):
         """Called when the page becomes visible — override to refresh data."""
-        pass
 
     def set_loading(self, active: bool):
-        """Show or hide a loading state (subclass can override for visuals)."""
         self._loading = active
         self.body.setEnabled(not active)
 
-    # ── Static helpers used by subclasses ────────────────────────────────────
-
+    # ── Helpers used by pages ────────────────────────────────────────────────
     @staticmethod
     def section_label(text: str) -> QLabel:
+        """Section heading above a group of cards."""
         lbl = QLabel(text)
-        lbl.setFont(dt.FONT_SECTION)
-        lbl.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()}; padding-top: 8px;")
+        lbl.setFont(dt.font(16, dt.QFont.Weight.DemiBold))
+        lbl.setContentsMargins(0, 10, 0, 0)
         return lbl
 
     @staticmethod
     def hint_label(text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setFont(dt.FONT_CAPTION)
+        lbl.setFont(dt.font(13))
         lbl.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
         lbl.setWordWrap(True)
         return lbl
@@ -116,12 +146,6 @@ class BasePage(QWidget):
         lbl.setStyleSheet(f"color: {dt.TEXT_DIM.name()};")
         return lbl
 
-    # ── Clear helper for subclasses ──────────────────────────────────────────
-
     def clear_body(self):
-        """Remove all widgets from the body layout (except the stretch)."""
-        while self.body_layout.count():
-            item = self.body_layout.takeAt(0)
-            w = item.widget()
-            if w:
-                w.deleteLater()
+        from .widgets import _clear_layout
+        _clear_layout(self.body_layout)
