@@ -33,11 +33,23 @@ def _q(s: str) -> str:
                    .replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r")) + "'"
 
 
+def _env() -> dict:
+    """Environment for the system `gdbus` binary. The PyInstaller bundle points
+    LD_LIBRARY_PATH at its own (older) glib, which makes the system gdbus crash
+    with "undefined symbol", so every call silently failed in the installed app."""
+    env = dict(os.environ)
+    if "LD_LIBRARY_PATH_ORIG" in env:
+        env["LD_LIBRARY_PATH"] = env["LD_LIBRARY_PATH_ORIG"]
+    elif getattr(__import__("sys"), "frozen", False):
+        env.pop("LD_LIBRARY_PATH", None)
+    return env
+
+
 def _call(method: str, *args: str, timeout: float = 10.0) -> Optional[str]:
     cmd = ["gdbus", "call", "--session", "--dest", SERVICE, "--object-path", PATH,
            "--method", f"{SERVICE}.{method}", *args]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=_env())
     except (OSError, subprocess.TimeoutExpired):
         return None
     return r.stdout if r.returncode == 0 else None
@@ -69,7 +81,8 @@ def _has_capture() -> bool:
         return True
     try:
         r = subprocess.run(["gdbus", "introspect", "--session", "--dest", SERVICE,
-                            "--object-path", PATH], capture_output=True, text=True, timeout=4)
+                            "--object-path", PATH], capture_output=True, text=True, timeout=4,
+                           env=_env())
         _capable = "Screenshot(" in r.stdout
     except (OSError, subprocess.TimeoutExpired):
         _capable = False
