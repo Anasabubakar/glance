@@ -17,6 +17,7 @@ TLS handshake per model call).
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 
@@ -101,11 +102,46 @@ class RoutingMixin:
             return "chat"
         return None
 
+    _ACT_RX = re.compile(
+        r"\b(could|can|would|will|should)\s+you\s+(please\s+)?(click|tap|press|type|scroll|open|"
+        r"launch|close|go\s+to|search|play|send|select|drag|navigate)\b"
+        r"|\b(click|tap|double.?click|right.?click)\s+(on|the|that|it|this)\b"
+        r"|^(please\s+)?(open|launch|click|tap|press|type|scroll|close|go\s+to|search|play|"
+        r"send|select|navigate|start|switch|minimi[sz]e|maximi[sz]e)\b")
+    _LLM_RX = re.compile(
+        r"\b(remember|forget|from now on|whenever i say|routine|skill|research|in the "
+        r"background|undo|revert|clean ?up|tidy|organi[sz]e|email|gmail|calendar)\b")
+
+    def _local_route(self, transcript: str):
+        """Instant, offline routing for providers without a structured router."""
+        s = (transcript or "").strip().lower()
+        if not s:
+            return {"route": "chat"}
+        fast = self._fast_route(s)
+        if fast:
+            return {"route": fast}
+        if self._LLM_RX.search(s):
+            return None                      # rare, needs the model's judgement
+        if self._ACT_RX.search(s):
+            return {"route": "act"}
+        return {"route": "chat"}
+
     async def _route(self, transcript: str) -> dict:
         """Decide the route: structured tool-use routing when available (Anthropic
         or OpenAI), generic text classification through the active LLM otherwise.
         Falls back to {'route': 'chat'}."""
         provider = cfg.llm_provider()
+        if provider not in ("claude", "openai", "copilot"):
+            # Gemini / Ollama / custom have no cheap structured router, and a model
+            # hop here cost 3-100 s. Decide locally; only ask the model when the
+            # request might be a memory/skill/background one, and never wait long.
+            local = self._local_route(transcript)
+            if local:
+                return local
+            try:
+                return await asyncio.wait_for(self._route_generic(transcript), 4.0)
+            except Exception:
+                return {"route": "chat"}
         if provider == "claude" and cfg.anthropic_api_key:
             result = await self._route_anthropic(transcript)
             if result is not None:
