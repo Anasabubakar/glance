@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-11" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.11 — Fast answers, visible steps</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Gemini: the fastest healthy model is tried first, slow or busy ones are skipped and remembered</li>
+        <li>• The cursor now flies to each target and hovers before clicking</li>
+        <li>• Keys, typing and app launches show a caption beside the cursor</li>
+      </ul>
+
       <h2 id="v0-3-10" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.10 — Screen capture and clicks fixed</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
