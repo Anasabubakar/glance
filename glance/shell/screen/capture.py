@@ -85,9 +85,74 @@ def _query_dpi_scale() -> float:
     return 1.0
 
 
+def _encode(img: Image.Image, max_width: int):
+    """Downscale (for the LLM) and JPEG/base64 encode; returns (img, b64)."""
+    if img.width > max_width:
+        ratio = max_width / img.width
+        img = img.resize((max_width, int(img.height * ratio)), Image.Resampling.LANCZOS)
+    buf = io.BytesIO()
+    img.convert("RGB").save(buf, format="JPEG", quality=75, optimize=True)
+    return img, base64.b64encode(buf.getvalue()).decode("utf-8")
+
+
+def _is_blank(img: Image.Image) -> bool:
+    """True for an all-black frame — what mss returns on Wayland."""
+    try:
+        return not any(hi for _lo, hi in img.convert("RGB").getextrema())
+    except Exception:
+        return False
+
+
+def _capture_via_gnome(max_width: int) -> List[ScreenShot]:
+    """Capture through the GNOME extension (works on Wayland). [] if unavailable."""
+    from screen import gnome_bridge
+    if not gnome_bridge.available():
+        return []
+    info = gnome_bridge.screenshot()
+    if not info:
+        return []
+    path = info["path"]
+    try:
+        full = Image.open(path)
+        full.load()
+    except Exception:
+        return []
+    finally:
+        gnome_bridge._unlink(path)
+    stage_w = max(1, int(info["stage"]["w"]))
+    scale = full.width / stage_w                      # physical px per logical px
+    gnome_bridge.last_scale = scale
+    mons = sorted(info.get("monitors") or [], key=lambda m: not m.get("primary"))
+    if not mons:
+        mons = [{"x": 0, "y": 0, "w": stage_w, "h": int(info["stage"]["h"])}]
+    results = []
+    for i, m in enumerate(mons, start=1):
+        box = (int(m["x"] * scale), int(m["y"] * scale),
+               int((m["x"] + m["w"]) * scale), int((m["y"] + m["h"]) * scale))
+        crop = full.crop(box)
+        if _is_blank(crop):
+            continue
+        img, enc = _encode(crop, max_width)
+        results.append(ScreenShot(
+            index=i, width=img.width, height=img.height, base64_jpeg=enc,
+            physical_width=crop.width, physical_height=crop.height,
+            physical_left=box[0], physical_top=box[1], dpi_scale=scale,
+            logical_left=int(m["x"]), logical_top=int(m["y"]),
+        ))
+    return results
+
+
 def capture_all_screens(max_width: int = 1280) -> List[ScreenShot]:
     """Capture all monitors. Each ScreenShot carries everything needed
-    to convert detection coords back into logical screen space."""
+    to convert detection coords back into logical screen space.
+
+    Returns [] when the screen cannot be captured (e.g. a blank frame on Wayland
+    without the GNOME extension) so callers say "I can't see your screen" instead
+    of sending a black image to a model that then guesses."""
+    if sys.platform.startswith("linux"):
+        via = _capture_via_gnome(max_width)
+        if via:
+            return via
     dpi = _query_dpi_scale()
     results = []
     with mss.mss() as sct:
@@ -95,6 +160,9 @@ def capture_all_screens(max_width: int = 1280) -> List[ScreenShot]:
         for i, monitor in enumerate(sct.monitors[1:], start=1):
             raw = sct.grab(monitor)
             img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+            if _is_blank(img):
+                _warn_blank_once()
+                continue
 
             phys_w, phys_h = img.width, img.height
             phys_left = int(monitor.get("left", 0))
@@ -127,6 +195,18 @@ def capture_all_screens(max_width: int = 1280) -> List[ScreenShot]:
             ))
 
     return results
+
+
+_warned_blank = False
+
+
+def _warn_blank_once() -> None:
+    global _warned_blank
+    if not _warned_blank:
+        _warned_blank = True
+        print("[glance] screen capture returned a blank frame (Wayland?). "
+              "Install/enable the Glance Cursor GNOME extension and log in again.",
+              flush=True)
 
 
 def capture_primary() -> ScreenShot:
