@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-10" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.10 — Screen capture and clicks fixed</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Screen capture, clicks and typing now work in the installed app on GNOME</li>
+        <li>• Minimize, switch, copy, save and similar requests go straight to the action path</li>
+        <li>• Glance no longer claims to see your screen when no screenshot was captured</li>
+      </ul>
+
       <h2 id="v0-3-9" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.9 — Text and vision models</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
