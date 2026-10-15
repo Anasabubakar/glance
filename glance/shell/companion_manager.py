@@ -963,6 +963,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
                     screenshots = capture_all_screens()
                 images_b64 = [s.base64_jpeg for s in screenshots]
             self._point_shots = screenshots   # for scaling model [POINT] coords
+            self._no_shot_note = (not images_b64) and not (sensitive or identity_q)
 
             # 3. Parallel side-work: web search + element locator
             #
@@ -1105,6 +1106,9 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
                     "\n\n" + self._memory.facts_block() if self._memory.facts else "")
                     + self._bg_block(),
             )
+            if getattr(self, "_no_shot_note", False):
+                system += ("\n\nNOTE: no screenshot is available for this request. Do not "
+                           "claim to see the screen; say you can't see it right now.")
             if sensitive:
                 system += (
                     "\n\nPRIVACY GUARD: the user's active window looks sensitive "
