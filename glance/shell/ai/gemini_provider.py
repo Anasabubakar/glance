@@ -8,6 +8,7 @@ import asyncio
 import json
 import os
 import time
+from pathlib import Path
 from typing import AsyncIterator, List
 
 import httpx
@@ -48,30 +49,79 @@ _nothink: set = set()        # models that reject thinkingConfig
 _sticky = {"text": None, "vision": None}
 
 
+# Speed memory, kept across runs: new Gemini models are often overloaded (503) or slow
+# (5+ s), and trying them first on every request cost 10-60 s per turn. We remember
+# how fast each model answered (time to first token) and which ones recently failed,
+# and try the fastest healthy model first.
+_HEALTH_FILE = Path(os.path.expanduser("~/.glance")) / "gemini_health.json"
+_lat: dict = {}              # "model|v" or "model|t" -> smoothed seconds to first token
+_bad_until: dict = {}        # model -> wall-clock time before which we skip it
+
+
+def _load_health() -> None:
+    try:
+        d = json.loads(_HEALTH_FILE.read_text(encoding="utf-8"))
+        _lat.update({k: float(v) for k, v in d.get("lat", {}).items()})
+        now = time.time()
+        _bad_until.update({k: float(v) for k, v in d.get("bad", {}).items() if float(v) > now})
+        _nothink.update(d.get("nothink", []))
+        _bad.update(d.get("retired", []))
+        if d.get("models") and time.time() - float(d.get("models_t", 0)) < 6 * 3600:
+            _cache["models"] = list(d["models"])
+            _cache["t"] = time.monotonic() - (time.time() - float(d["models_t"]))
+    except Exception:
+        pass
+
+
+def _save_health() -> None:
+    try:
+        _HEALTH_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _HEALTH_FILE.write_text(json.dumps({"lat": _lat, "bad": _bad_until, "nothink": sorted(_nothink),
+                                       "retired": sorted(_bad), "models": _cache["models"],
+                                       "models_t": time.time() - (time.monotonic() - _cache["t"])}), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _record_latency(name: str, vision: bool, secs: float) -> None:
+    k = f"{name}|{'v' if vision else 't'}"
+    _lat[k] = secs if k not in _lat else 0.6 * _lat[k] + 0.4 * secs
+    _bad_until.pop(name, None)
+    _save_health()
+
+
 def _cooldown(name: str, status: int, retry_after: str | None) -> None:
-    secs = 20.0
-    if status == 503:
-        secs = 8.0
-    elif status == 0:
-        secs = 5.0
+    secs = 120.0 if status in (429, 500, 502, 503, 504) else 30.0
     try:
         if retry_after:
-            secs = min(max(float(retry_after), 2.0), 90.0)
+            secs = min(max(float(retry_after), 20.0), 600.0)
     except ValueError:
         pass
+    _bad_until[name] = time.time() + secs
     _cool[name] = time.monotonic() + secs
+    _save_health()
+
+
+_load_health()
 
 
 def _order(cands: list, vision: bool) -> list:
     now = time.monotonic()
-    if vision:                                  # lite models mis-place clicks: never use them
-        cands = [c for c in cands if "lite" not in c]
-    ready = [c for c in cands if _cool.get(c, 0) <= now]
-    pool = ready or sorted(cands, key=lambda c: _cool.get(c, 0))
-    pref = _sticky["vision" if vision else "text"]
-    if pref in pool:
-        pool = [pref] + [c for c in pool if c != pref]
-    return pool
+    wall = time.time()
+    ready = [c for c in cands if _cool.get(c, 0) <= now and _bad_until.get(c, 0) <= wall]
+    if not ready:
+        return sorted(cands, key=lambda c: _bad_until.get(c, 0))
+    tag = "v" if vision else "t"
+    # Fastest known first; models we have never timed sit at 3 s (so a proven 1.5 s
+    # model beats them, and a proven 6 s model loses to them). Ties keep newest-first.
+    def guess(c):
+        return 2.0 if "lite" in c else (4.0 if "preview" in c else 3.0)
+    def cost(c):
+        t = _lat.get(f"{c}|{tag}", guess(c))
+        # Lite models can place clicks less precisely: for vision they must be
+        # clearly faster (2.5x) than a full flash model to be preferred.
+        return t * 2.5 if (vision and "lite" in c) else t
+    return sorted(ready, key=cost)
 
 
 async def _candidates(client: httpx.AsyncClient, key: str, requested: str | None) -> list:
@@ -81,6 +131,7 @@ async def _candidates(client: httpx.AsyncClient, key: str, requested: str | None
             if r.status_code == 200:
                 _cache["models"] = pick_models(r.json().get("models", []))
                 _cache["t"] = time.monotonic()
+                _save_health()
         except Exception:
             pass
     order = ([requested] if requested and requested not in ("auto",) else []) + \
@@ -123,13 +174,14 @@ class GeminiProvider(BaseLLMProvider):
             # off cuts roughly 2-3 s from every response. Dropped if a model rejects it.
             "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.7},
         }
-        if not screenshots_b64:
-            # Plain chat doesn't need long "thinking": off saves ~2-3 s. Never for
-            # screenshots: grounding (where to click) gets much less accurate.
-            body["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0}
+        # "Thinking" made a one-step screen action take 10-60 s. Plain chat needs none;
+        # screenshots get the lowest level (grounding stays accurate, answers in ~2-5 s).
+        body["generationConfig"]["thinkingConfig"] = (
+            {"thinkingLevel": "low"} if screenshots_b64 else {"thinkingBudget": 0})
 
         last_err = "no usable Gemini model"
-        async with httpx.AsyncClient(timeout=120) as client:
+        _vision = bool(screenshots_b64)
+        async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=6, read=30)) as client:
             # Google answers 503 "high demand" in short bursts that hit every model
             # at once; a brief backoff and a second pass rides them out.
             for attempt in range(3):
@@ -165,13 +217,13 @@ class GeminiProvider(BaseLLMProvider):
                                 if "api key" in low:
                                     raise GeminiError(last_err)  # bad key: don't loop
                                 if "thinkingConfig" in send["generationConfig"]:
-                                    _nothink.add(name)           # remember; retry without it
+                                    _nothink.add(name); _save_health()   # remember; retry without it
                                     queue.insert(0, name)
                                 else:
-                                    _bad.add(name)               # this model rejects us; skip it
+                                    _bad.add(name); _save_health()  # this model rejects us; skip it
                                 continue
                             if resp.status_code in (403, 404):
-                                _bad.add(name)                   # retired for this key
+                                _bad.add(name); _save_health()      # retired for this key
                             elif resp.status_code in (429, 500, 502, 503, 504):
                                 if resp.status_code != 429:
                                     retriable = True             # transient; a second pass may work
@@ -179,7 +231,21 @@ class GeminiProvider(BaseLLMProvider):
                             continue                             # try the next model
                         _sticky["vision" if screenshots_b64 else "text"] = name
                         _cool.pop(name, None)
-                        async for line in resp.aiter_lines():
+                        _first = True
+                        lines = resp.aiter_lines().__aiter__()
+                        timed_out = False
+                        while True:
+                            try:
+                                # A model that is up but crawling (30+ s to the first word) is
+                                # worse than the next one: give up on it after 14 s.
+                                line = await asyncio.wait_for(lines.__anext__(), 14 if _first else 60)
+                            except StopAsyncIteration:
+                                break
+                            except asyncio.TimeoutError:
+                                if _first:
+                                    timed_out = True
+                                    break
+                                raise GeminiError(f"{name}: stalled mid-answer")
                             if not line.startswith("data: "):
                                 continue
                             data = line[6:].strip()
@@ -193,7 +259,16 @@ class GeminiProvider(BaseLLMProvider):
                                 for part in cand.get("content", {}).get("parts", []):
                                     text = part.get("text", "")
                                     if text:
+                                        if _first:
+                                            _first = False
+                                            _record_latency(name, _vision, time.monotonic() - _t0)
                                         yield text
+                        if timed_out:
+                            _lat[f"{name}|{'v' if _vision else 't'}"] = 20.0
+                            last_err = f"{name}: too slow to answer"
+                            _cooldown(name, 503, None)
+                            retriable = True
+                            continue
                         return
                     finally:
                         await cm.__aexit__(None, None, None)
