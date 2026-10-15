@@ -69,6 +69,7 @@ for pkg in (
 # The shell's bare-name top-level modules + packages.
 hiddenimports += [
     "config", "main", "companion_manager", "hotkey", "hotkey_gnome",
+    "prefs", "fastpath", "PyQt6.QtSvg", "PyQt6.QtDBus",
     "memory_store", "google_workspace",
     "keyboard", "pynput", "dotenv",
     # pynput picks its backend with importlib at runtime. The CI build machine has
