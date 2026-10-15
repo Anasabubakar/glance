@@ -507,9 +507,19 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
 
     # ── Provider lazy init ────────────────────────────────────────────────────
 
+    def _model_for(self, has_images: bool):
+        """Vision calls use the chosen vision model; plain chat uses the chosen text
+        model (falling back to the vision choice, then the provider default)."""
+        if has_images:
+            return self._current_model or cfg.active_model()
+        return cfg.text_model_pick() or self._current_model or cfg.active_model()
+
     def _get_llm(self) -> BaseLLMProvider:
+        if self._llm is not None and getattr(self, "_llm_for", None) != cfg.llm_provider():
+            self._llm = None                 # provider changed from another page
         if self._llm is None:
             provider = cfg.llm_provider()
+            self._llm_for = provider
             if provider == "claude":
                 from ai.claude_provider import ClaudeProvider
                 self._llm = ClaudeProvider()
@@ -1026,7 +1036,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
                             dpi_scale=shot.dpi_scale,
                             screen_index=shot.index,
                             user_question=transcript,
-                            model=self._current_model,
+                            model=self._model_for(True),
                         ))
                     except Exception:
                         # Universal locator should never crash the main flow
@@ -1179,7 +1189,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
                 screenshots_b64=images_b64,
                 history=history,
                 system_prompt=system,
-                model=self._current_model,
+                model=self._model_for(bool(images_b64)),
             ):
                 if self._cancel_flag:
                     break
@@ -1488,7 +1498,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
                 screenshots_b64=images_b64,
                 history=history,
                 system_prompt=system,
-                model=self._current_model,
+                model=self._model_for(bool(images_b64)),
             ):
                 if self._cancel_flag:
                     break
