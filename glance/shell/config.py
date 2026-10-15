@@ -247,7 +247,7 @@ class Config:
         if p == "openai":
             return os.environ.get("GLANCE_FAST_MODEL", "gpt-4o-mini")
         if p == "gemini":
-            return os.environ.get("GLANCE_FAST_MODEL", "gemini-2.0-flash")
+            return os.environ.get("GLANCE_FAST_MODEL", "auto")
         if p == "copilot":
             return os.environ.get("GLANCE_FAST_MODEL", "gpt-4o-mini")
         if p == "custom":
@@ -269,7 +269,7 @@ class Config:
         if p == "openai":
             return os.environ.get("GLANCE_VISION_MODEL", "gpt-4o")
         if p == "gemini":
-            return os.environ.get("GLANCE_VISION_MODEL", "gemini-2.0-flash")
+            return os.environ.get("GLANCE_VISION_MODEL", "auto")
         if p == "copilot":
             return os.environ.get("GLANCE_VISION_MODEL", "gpt-4o")
         if p == "custom":
