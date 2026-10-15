@@ -62,32 +62,30 @@ class SetupWizard(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Glance Setup")
         self.setModal(False)
-        self.setMinimumSize(560, 380)
-        self.setStyleSheet("""
-            QDialog { background: #0e1014; color: #e8eaed; }
-            QLabel  { color: #e8eaed; }
-            QLabel#title { font-size: 22px; font-weight: 700; }
-            QLabel#subtitle { color: #a0a3a8; font-size: 13px; }
-            QLabel#status { color: #c8cbd0; font-size: 13px; }
-            QPushButton {
-                background: #1f6feb; color: white; border: none;
-                padding: 10px 18px; border-radius: 8px;
-                font-weight: 600; font-size: 13px;
-            }
-            QPushButton:hover  { background: #2f7fff; }
-            QPushButton:disabled { background: #333; color: #888; }
-            QPushButton#secondary {
-                background: transparent; color: #a0a3a8;
-                border: 1px solid #2a2d33;
-            }
-            QPushButton#secondary:hover { color: #e8eaed; border-color: #444; }
-            QProgressBar {
-                background: #1a1d22; border: 1px solid #2a2d33;
-                border-radius: 6px; height: 12px; text-align: center;
-                color: #e8eaed; font-size: 11px;
-            }
-            QProgressBar::chunk { background: #1f6feb; border-radius: 6px; }
+        from ui.launcher import design_tokens as _dt
+        self.setStyleSheet(_dt.APP_QSS + _dt.arrow_qss() + f"""
+            QDialog {{ background: {_dt.BG_DEEP.name()}; }}
+            QLabel#title {{ font-size: 26px; font-weight: 700; }}
+            QLabel#subtitle {{ color: {_dt.TEXT_MUTED.name()}; font-size: 14px; }}
+            QLabel#status {{ color: {_dt.TEXT_MUTED.name()}; font-size: 13px; }}
+            QPushButton {{
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 {_dt.BRAND_INDIGO.name()},
+                    stop:1 {_dt.BRAND_VIOLET.name()});
+                color: white; border: none; padding: 0 22px; min-height: 42px;
+                border-radius: {_dt.BUTTON_RADIUS}px; font-weight: 600; font-size: 14px;
+            }}
+            QPushButton:hover {{ background: {_dt.ACCENT_HOVER.name()}; }}
+            QPushButton:disabled {{ background: {_dt.BG_ELEVATED.name()}; color: {_dt.TEXT_DIM.name()}; }}
+            QPushButton#secondary {{
+                background: {_dt.BG_ELEVATED.name()}; color: {_dt.TEXT_PRIMARY.name()};
+                border: 1px solid {_dt.BORDER_CSS};
+            }}
+            QPushButton#secondary:hover {{ background: {_dt.BG_HOVER.name()}; border-color: {_dt.BORDER_STRONG_CSS}; }}
+            QProgressBar {{ background: {_dt.BG_INPUT.name()}; border: none; border-radius: 4px;
+                            height: 8px; text-align: center; color: transparent; }}
+            QProgressBar::chunk {{ background: {_dt.BRAND_INDIGO.name()}; border-radius: 4px; }}
         """)
+        self.setMinimumSize(660, 640)
 
         self._build_ui()
         self.progress_signal.connect(self._on_progress)
@@ -192,12 +190,16 @@ class SetupWizard(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
 
-        self.skip_btn = QPushButton("Skip — I'll use an API key")
+        self.skip_btn = QPushButton("On this computer")
         self.skip_btn.setObjectName("secondary")
         self.skip_btn.clicked.connect(self._on_skip)
         btn_row.addWidget(self.skip_btn)
 
         btn_row.addStretch(1)
+
+        self.free_btn = QPushButton("Start free")
+        self.free_btn.clicked.connect(self._on_start_free)
+        btn_row.addWidget(self.free_btn)
 
         self.action_btn = QPushButton("Get started")
         self.action_btn.clicked.connect(self._on_action)
@@ -214,20 +216,32 @@ class SetupWizard(QDialog):
         self.progress.hide()
         self.progress.setValue(0)
         self.keys_box.hide()
+        self.free_btn.hide()
+        self.subtitle.setTextFormat(Qt.TextFormat.PlainText)
+        if step != "choice":
+            self.action_btn.setObjectName("")
+            self.action_btn.setStyle(self.action_btn.style())
 
         if step == "choice":
-            self.title.setText("Welcome to Glance 🧤")
+            self.title.setText("Welcome to Glance")
+            self.subtitle.setTextFormat(Qt.TextFormat.RichText)
+            _h = "color:#F3F4F8;font-weight:600;font-size:15px"
             self.subtitle.setText(
-                "How should Glance think?\n\n"
-                "• Your API key — the full experience: she sees your "
-                "screen, points, and actually does things. Works with "
-                "Anthropic, OpenAI, or Google Gemini.\n"
-                "• Free local mode — runs on your machine via Ollama. "
-                "She can see and talk, but can't act."
+                "Choose how Glance thinks. You can change this any time under AI &amp; Keys."
+                f"<br><br><span style='{_h}'>Start free</span><br>"
+                "Chat, ask questions and open apps right now. No account and no key. "
+                "It can't see your screen."
+                f"<br><br><span style='{_h}'>Use my own key</span><br>"
+                "Gemini (which has a free tier), Claude or OpenAI. Glance can see your screen, point and click."
+                f"<br><br><span style='{_h}'>On this computer</span><br>"
+                "Private and offline with Ollama. Needs a model download."
             )
-            self.action_btn.setText("Use my API key")
+            self.action_btn.setText("Use my own key")
+            self.action_btn.setObjectName("secondary")
+            self.action_btn.setStyle(self.action_btn.style())
             self.action_btn.setEnabled(True)
-            self.skip_btn.setText("Free local mode (Ollama)")
+            self.free_btn.show()
+            self.skip_btn.setText("On this computer")
             self.skip_btn.setEnabled(True)
             self.skip_btn.show()
             self.status.setText("")
@@ -439,6 +453,16 @@ class SetupWizard(QDialog):
 
         elif s == "done":
             self.accept()
+
+    def _on_start_free(self):
+        """Glance Cloud: nothing to install or paste. Remember the choice and go."""
+        os.environ["GLANCE_ACTIVE_LLM"] = "cloud"
+        try:
+            cfg._persist_env("GLANCE_ACTIVE_LLM", "cloud")
+        except Exception:
+            pass
+        mark_setup_complete()
+        self.accept()
 
     def _on_skip(self):
         s = self._step
