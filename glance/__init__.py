@@ -5,4 +5,4 @@ the file operations, journal, and permission logic are pure and SDK-free so
 they can be tested headless.
 """
 
-__version__ = "0.3.10"
+__version__ = "0.3.11"
