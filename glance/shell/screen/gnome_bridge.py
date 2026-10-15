@@ -89,6 +89,17 @@ def _has_capture() -> bool:
     return _capable
 
 
+def state() -> Optional[dict]:
+    """The overlay's live state: {pointer:{x,y}, pos:{x,y}, stage:{w,h}, ...}."""
+    out = _call("GetState", timeout=2.0)
+    if not out:
+        return None
+    try:
+        return json.loads(ast.literal_eval(out.strip())[0])
+    except (ValueError, SyntaxError, IndexError, TypeError):
+        return None
+
+
 def outdated() -> bool:
     """True when the extension is running but is an old copy: log out and back in."""
     if os.environ.get("GLANCE_NO_GNOME_BRIDGE", "") == "1":
