@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-8" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.8 — Faster answers</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Requests are sorted locally for Gemini, Ollama and custom endpoints, removing a slow extra model call</li>
+        <li>• Wake-word listening pauses while Glance is working</li>
+        <li>• Clear message to log out and back in when the GNOME extension is out of date</li>
+      </ul>
+
       <h2 id="v0-3-7" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.7 — Your own key, fast models</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
