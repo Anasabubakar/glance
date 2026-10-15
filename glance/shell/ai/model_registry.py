@@ -48,7 +48,6 @@ _FALLBACKS: dict[str, list[dict]] = {
     "gemini": [
         {"id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash", "vision": True},
         {"id": "gemini-2.5-pro",   "label": "Gemini 2.5 Pro",   "vision": True},
-        {"id": "gemini-2.0-flash", "label": "Gemini 2.0 Flash", "vision": True},
     ],
 }
 
@@ -141,7 +140,8 @@ async def _fetch_gemini() -> list[dict]:
     async with httpx.AsyncClient(timeout=15) as client:
         r = await client.get(
             "https://generativelanguage.googleapis.com/v1beta/models",
-            params={"key": cfg.google_api_key},
+            params={"pageSize": 200},
+            headers={"x-goog-api-key": cfg.google_api_key or ""},   # header, not URL
         )
     r.raise_for_status()
     data = r.json().get("models", [])
