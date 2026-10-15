@@ -114,6 +114,8 @@ def main(launcher_window=None):
 
     # Panel → Manager
     panel.on_model_changed.connect(manager.set_model)
+    panel.on_push_to_talk_pressed.connect(manager.on_hotkey_press)
+    panel.on_push_to_talk_released.connect(manager.on_hotkey_release)
 
     def _on_doc_dropped(path: str):
         ok = manager.attach_document(path)
@@ -137,6 +139,20 @@ def main(launcher_window=None):
     tray.on_toggle_multilang.connect(manager.set_multilang)
     tray.on_toggle_journal.connect(manager.set_journal)
     tray.on_toggle_ocr.connect(manager.set_ocr_enabled)
+
+    # Remember every toggle across launches, and re-apply saved choices now.
+    import prefs
+    for _env, _sig in (("GLANCE_WEB_SEARCH", tray.on_toggle_search),
+                       ("GLANCE_WAKE_WORD", tray.on_toggle_wake_word),
+                       ("GLANCE_SLOW_MODE", tray.on_toggle_slow_mode),
+                       ("GLANCE_PRIVACY", tray.on_toggle_privacy),
+                       ("GLANCE_CODE_MODE", tray.on_toggle_code_mode),
+                       ("GLANCE_MULTILINGUAL", tray.on_toggle_multilang),
+                       ("GLANCE_OCR_FALLBACK", tray.on_toggle_ocr),
+                       ("GLANCE_JOURNAL", tray.on_toggle_journal)):
+        _sig.connect(lambda on, e=_env: prefs.persist(e, on))
+    prefs.runtime.update({"tray": tray, "manager": manager})
+    prefs.apply_saved()
 
     # Lesson recording
     def _record_start():

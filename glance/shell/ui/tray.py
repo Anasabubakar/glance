@@ -69,18 +69,16 @@ class TrayManager(QObject):
         self._tray.setToolTip(
             f"Glance - AI Companion\nHold {cfg.hotkey} to speak"
         )
-        self._search_enabled = True
-        # GLANCE_WAKE_WORD=0 starts with the wake word off (e.g. demo recording,
-        # where narration says "Glance" while she's idle). Tray toggle still works.
-        import os as _os
-        self._wake_enabled = _os.environ.get("GLANCE_WAKE_WORD", "1") != "0"
-        self._slow_enabled = False
-        self._quiz_enabled = False
-        self._privacy_enabled = True
-        self._code_enabled = True
-        self._multilang_enabled = True
-        self._journal_enabled = True
-        self._ocr_enabled = True
+        import prefs as _prefs
+        self._search_enabled = _prefs.get("GLANCE_WEB_SEARCH")
+        self._wake_enabled = _prefs.get("GLANCE_WAKE_WORD")
+        self._slow_enabled = _prefs.get("GLANCE_SLOW_MODE")
+        self._quiz_enabled = False           # session-only; never saved
+        self._privacy_enabled = _prefs.get("GLANCE_PRIVACY")
+        self._code_enabled = _prefs.get("GLANCE_CODE_MODE")
+        self._multilang_enabled = _prefs.get("GLANCE_MULTILINGUAL")
+        self._journal_enabled = _prefs.get("GLANCE_JOURNAL")
+        self._ocr_enabled = _prefs.get("GLANCE_OCR_FALLBACK")
         self._is_recording = False
 
         # Ollama model state — populated by manager via set_ollama_models()
@@ -94,11 +92,13 @@ class TrayManager(QObject):
 
     def _build_menu(self):
         menu = QMenu()
+        from ui.launcher import design_tokens as _dt
         menu.setStyleSheet(
-            "QMenu { background: rgb(22,22,28); border: 1px solid rgb(55,55,70);"
-            "border-radius: 8px; color: rgb(220,220,230); font-size: 13px; }"
-            "QMenu::item:selected { background: rgb(0,90,200); border-radius: 4px; }"
-            "QMenu::separator { height: 1px; background: rgb(55,55,70); margin: 4px 8px; }"
+            f"QMenu {{ background: {_dt.BG_ELEVATED.name()}; border: 1px solid {_dt.BORDER_STRONG_CSS};"
+            f"border-radius: 12px; padding: 6px; color: {_dt.TEXT_PRIMARY.name()}; font-size: 13px; }}"
+            f"QMenu::item {{ padding: 8px 22px 8px 14px; border-radius: 8px; }}"
+            f"QMenu::item:selected {{ background: {_dt.ACCENT_SOFT}; }}"
+            f"QMenu::separator {{ height: 1px; background: {_dt.BORDER_CSS}; margin: 6px 4px; }}"
         )
 
         providers = cfg.describe()
@@ -451,6 +451,28 @@ class TrayManager(QObject):
             "Logging: ON" if checked else "Logging: OFF"
         )
         self.on_toggle_journal.emit(checked)
+
+    _PREF_MAP = {
+        "GLANCE_WEB_SEARCH":   ("_search_action", "_toggle_search"),
+        "GLANCE_WAKE_WORD":    ("_wake_action", "_toggle_wake"),
+        "GLANCE_SLOW_MODE":    ("_slow_action", "_toggle_slow"),
+        "GLANCE_PRIVACY":      ("_privacy_action", "_toggle_privacy"),
+        "GLANCE_CODE_MODE":    ("_code_action", "_toggle_code"),
+        "GLANCE_MULTILINGUAL": ("_ml_action", "_toggle_multilang"),
+        "GLANCE_OCR_FALLBACK": ("_ocr_action", "_toggle_ocr"),
+        "GLANCE_JOURNAL":      ("_journal_action", "_toggle_journal"),
+    }
+
+    def set_pref(self, env: str, on: bool):
+        """Apply a preference changed outside the menu: tick the menu item and
+        run the normal toggle path (which updates the app)."""
+        action_attr, toggle_attr = self._PREF_MAP[env]
+        action = getattr(self, action_attr, None)
+        if action is not None:
+            action.blockSignals(True)
+            action.setChecked(on)
+            action.blockSignals(False)
+        getattr(self, toggle_attr)(on)
 
     def set_recording_state(self, on: bool):
         self._is_recording = on
