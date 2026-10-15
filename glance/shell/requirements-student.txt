@@ -24,7 +24,7 @@ av>=12.0.0
 faster-whisper>=1.0.0
 
 # TTS (free, no key)
-edge-tts>=6.1.10
+edge-tts>=7.3.1
 
 # Web search (no key)
 # Uses DuckDuckGo Instant API — zero cost, zero config
