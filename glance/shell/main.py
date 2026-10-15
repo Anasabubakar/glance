@@ -5,6 +5,9 @@ Boots Qt, spawns overlay+panel+tray, starts ambient mic listener, binds hotkey.
 
 import os
 import sys
+
+import frozen_env
+frozen_env.install()   # child processes must not inherit the bundle's libraries
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
