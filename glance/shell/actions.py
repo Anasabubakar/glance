@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import sys
 import time
 
 from config import cfg
@@ -528,10 +529,32 @@ class ActionsMixin:
             return "clicking"
         return ""
 
+    def _caption(self, label: str, hold: float = 1.1) -> None:
+        """Show `label` beside the cursor for a moment (what Glance is about to do)."""
+        try:
+            from screen import gnome_bridge
+            st = gnome_bridge.state() if sys.platform.startswith("linux") else None
+            if st and st.get("pointer"):
+                p = st["pointer"]
+                self.sig_point_at.emit(float(p["x"]), float(p["y"]), label)
+                time.sleep(hold)
+        except Exception:
+            pass
+
     def _exec_action(self, actuator, action, px, py, text):
         """Run one computer-tool action on the real machine (physical coords)."""
         a = (action or "").lower()
         slog("ACT", f"{a} @ ({px},{py})" + (f" text={text[:30]!r}" if text else ""))
+        # Let the user SEE each step: the buddy flies to the target (the loops emit
+        # sig_point_at just before calling this) and hovers there before the click;
+        # keys and typing get a caption next to the cursor.
+        if px is not None and a in ("left_click", "click", "double_click", "right_click",
+                                    "mouse_move", "cursor_move", "scroll", "left_click_drag"):
+            time.sleep(1.0)
+        elif a in ("key", "type") and text:
+            lbl = getattr(self, "_step_label", "") or (
+                ("Pressing " + text) if a == "key" else f'Typing "{text.strip()[:40]}"')
+            self._caption(lbl)
         if a in ("left_click", "click") and px is not None:
             actuator.left_click(px, py)
         elif a == "double_click" and px is not None:
@@ -881,6 +904,7 @@ class ActionsMixin:
         shot, b64 = grab()
         self._cancel_flag = False
         self._emit_state(AppState.THINKING)
+        self._caption(f"On it: {instruction.strip()[:60]}", hold=0)   # acknowledge at once
         MAX_STEPS = 12
         try:
             for _ in range(MAX_STEPS):
@@ -920,13 +944,16 @@ class ActionsMixin:
 
                 act = (action.get("action") or "").lower()
                 label = action.get("text", "")
+                self._step_label = label
 
                 if act == "done":
                     await self._say_task(label or "Done.")
                     break
                 elif act == "launch_app":
+                    self._caption(label or f"Opening {action.get('name', '')}")
                     self._launch_app(action.get("name", ""))
                 elif act == "open_url":
+                    self._caption(label or "Opening the page")
                     self._open_url(action.get("target", ""))
                 elif act in ("click", "left_click"):
                     x, y = int(action.get("x", 0)), int(action.get("y", 0))
