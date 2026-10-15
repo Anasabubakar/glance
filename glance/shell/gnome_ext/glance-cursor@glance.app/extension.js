@@ -44,6 +44,17 @@ const IFACE = `<node>
       <arg type="s" direction="in" name="text"/><arg type="d" direction="in" name="ttl"/></method>
     <method name="ClearAnnotations"/>
     <method name="SetHotkey"><arg type="s" direction="in" name="accel"/></method>
+    <method name="Screenshot">
+      <arg type="s" direction="in" name="path"/><arg type="s" direction="out" name="json"/></method>
+    <method name="MoveTo"><arg type="d" direction="in" name="x"/><arg type="d" direction="in" name="y"/></method>
+    <method name="Click">
+      <arg type="d" direction="in" name="x"/><arg type="d" direction="in" name="y"/>
+      <arg type="i" direction="in" name="button"/><arg type="i" direction="in" name="count"/></method>
+    <method name="Scroll">
+      <arg type="d" direction="in" name="x"/><arg type="d" direction="in" name="y"/>
+      <arg type="i" direction="in" name="dy"/></method>
+    <method name="TypeText"><arg type="s" direction="in" name="text"/></method>
+    <method name="Key"><arg type="s" direction="in" name="combo"/></method>
     <method name="GetState"><arg type="s" direction="out" name="json"/></method>
     <signal name="HotkeyPressed"/>
     <signal name="HotkeyReleased"/>
@@ -93,6 +104,7 @@ export default class GlanceCursor extends Extension {
     disable() {
         this._releaseHotkey(false);
         this._ungrab();
+        this._vptr = this._vkbd = null;
         if (this._accelId) global.display.disconnect(this._accelId);
         this._accelId = 0;
         if (this._monitorsId)
@@ -362,6 +374,141 @@ export default class GlanceCursor extends Extension {
             this._held = false;
             if (emit) this._dbus.emit_signal('HotkeyReleased', null);
         }
+    }
+
+
+    // ── screen capture + input injection (Wayland apps can do neither) ───
+    // Capture the whole stage without our own overlay in it. Async D-Bus method:
+    // the reply is sent from ScreenshotAsync once the PNG has been written.
+    ScreenshotAsync(params, invocation) {
+        const [path] = params;
+        const reply = obj => invocation.return_value(new GLib.Variant('(s)', [JSON.stringify(obj)]));
+        try {
+            const mons = Main.layoutManager.monitors.map(m => ({
+                x: m.x, y: m.y, w: m.width, h: m.height,
+                scale: m.geometry_scale ?? 1, primary: m === Main.layoutManager.primaryMonitor,
+            }));
+            this._root.hide();                     // keep the buddy out of the shot
+            const out = Gio.File.new_for_path(path).replace(null, false, Gio.FileCreateFlags.NONE, null);
+            // Wait one frame so the hidden overlay is really gone before capturing.
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                const ss = new Shell.Screenshot();
+                ss.screenshot(false, out, (o, res) => {
+                    let ok = true, err = '';
+                    try { o.screenshot_finish(res); } catch (e) { ok = false; err = `${e}`; }
+                    try { out.close(null); } catch (_e) { /* ignore */ }
+                    if (this._shown) this._root.show();
+                    reply({ok, err, path, stage: {w: global.stage.width, h: global.stage.height}, monitors: mons});
+                });
+                return GLib.SOURCE_REMOVE;
+            });
+        } catch (e) {
+            if (this._shown) this._root.show();
+            reply({ok: false, err: `${e}`});
+        }
+    }
+
+    // A fresh virtual pointer per action: a long-lived one stops delivering
+    // after its first burst of events on GNOME 46. Kept alive briefly so queued
+    // events are flushed before it is released.
+    _pointer() {
+        const dev = Clutter.get_default_backend().get_default_seat()
+            .create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE);
+        (this._vpool ??= new Set()).add(dev);
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1500, () => { this._vpool.delete(dev); return GLib.SOURCE_REMOVE; });
+        return dev;
+    }
+
+    _keyboard() {
+        return this._vkbd ??= Clutter.get_default_backend().get_default_seat()
+            .create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
+    }
+
+    _t() { return GLib.get_monotonic_time(); }
+
+    MoveTo(x, y) {
+        try { this._pointer().notify_absolute_motion(this._t(), x, y); }
+        catch (e) { console.error('glance-cursor: MoveTo failed', e); }
+    }
+
+    // Run steps spaced by `ms` so the compositor sees distinct, ordered events
+    // (motion, press and release in one instant is not delivered reliably).
+    _seq(steps, ms = 40) {
+        let i = 0;
+        const next = () => {
+            if (i >= steps.length) return GLib.SOURCE_REMOVE;
+            try { steps[i++](); } catch (e) { console.error('glance-cursor: input step failed', e); }
+            return i < steps.length ? GLib.SOURCE_CONTINUE : GLib.SOURCE_REMOVE;
+        };
+        next();
+        if (i < steps.length) GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, next);
+    }
+
+    Click(x, y, button, count) {
+        const p = this._pointer();
+        const b = {1: Clutter.BUTTON_PRIMARY, 2: Clutter.BUTTON_MIDDLE, 3: Clutter.BUTTON_SECONDARY}[button] ?? Clutter.BUTTON_PRIMARY;
+        const steps = [() => p.notify_absolute_motion(this._t(), x, y)];
+        for (let i = 0; i < Math.max(1, count); i++) {
+            steps.push(() => p.notify_button(this._t(), b, Clutter.ButtonState.PRESSED));
+            steps.push(() => p.notify_button(this._t(), b, Clutter.ButtonState.RELEASED));
+        }
+        this._seq(steps);
+    }
+
+    Scroll(x, y, dy) {
+        const p = this._pointer();
+        const dir = dy > 0 ? Clutter.ScrollDirection.UP : Clutter.ScrollDirection.DOWN;
+        const steps = [() => p.notify_absolute_motion(this._t(), x, y)];
+        for (let i = 0; i < Math.abs(dy); i++)
+            steps.push(() => this._scrollOnce(p, dir));
+        this._seq(steps);
+    }
+
+    // GNOME 46 takes (time, direction, source); newer shells add finish flags.
+    _scrollOnce(p, dir) {
+        try {
+            p.notify_discrete_scroll(this._t(), dir, Clutter.ScrollSource.WHEEL);
+        } catch (_e) {
+            p.notify_discrete_scroll(this._t(), dir, Clutter.ScrollSource.WHEEL, Clutter.ScrollFinishFlags.NONE);
+        }
+    }
+
+    _tap(sym) {
+        const k = this._keyboard();
+        k.notify_keyval(this._t(), sym, Clutter.KeyState.PRESSED);
+        k.notify_keyval(this._t(), sym, Clutter.KeyState.RELEASED);
+    }
+
+    TypeText(text) {
+        try {
+            for (const ch of text) {
+                const cp = ch.codePointAt(0);
+                const sym = ch === '\n' ? Clutter.KEY_Return : ch === '\t' ? Clutter.KEY_Tab
+                    : Clutter.unicode_to_keysym(cp);
+                if (sym) this._tap(sym);
+            }
+        } catch (e) { console.error('glance-cursor: TypeText failed', e); }
+    }
+
+    // "ctrl+shift+t", "enter", "alt+tab", "super"
+    Key(combo) {
+        try {
+            const named = {enter: 'Return', return: 'Return', tab: 'Tab', esc: 'Escape', escape: 'Escape',
+                space: 'space', backspace: 'BackSpace', delete: 'Delete', del: 'Delete', up: 'Up', down: 'Down',
+                left: 'Left', right: 'Right', home: 'Home', end: 'End', pageup: 'Page_Up', pagedown: 'Page_Down'};
+            const mods = {ctrl: 'Control_L', control: 'Control_L', alt: 'Alt_L', shift: 'Shift_L',
+                super: 'Super_L', win: 'Super_L', cmd: 'Super_L', meta: 'Super_L'};
+            const parts = String(combo).toLowerCase().split('+').map(p => p.trim()).filter(Boolean);
+            if (!parts.length) return;
+            const held = parts.slice(0, -1).map(p => this._sym(mods[p] ?? '')).filter(Boolean);
+            const last = parts[parts.length - 1];
+            const sym = this._sym(named[last] ?? mods[last] ?? (last.length === 1 ? last : last[0].toUpperCase() + last.slice(1)));
+            if (!sym) return;
+            const k = this._keyboard();
+            for (const m of held) k.notify_keyval(this._t(), m, Clutter.KeyState.PRESSED);
+            this._tap(sym);
+            for (const m of held.reverse()) k.notify_keyval(this._t(), m, Clutter.KeyState.RELEASED);
+        } catch (e) { console.error('glance-cursor: Key failed', e); }
     }
 
     // ── D-Bus methods ─────────────────────────────────────────────────────
