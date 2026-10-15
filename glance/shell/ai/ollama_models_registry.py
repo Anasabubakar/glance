@@ -27,6 +27,13 @@ class OllamaRec:
 
 RECOMMENDED_VISION: list[OllamaRec] = [
     OllamaRec(
+        name="qwen2.5vl:3b",
+        label="Qwen2.5-VL 3B",
+        size="3.2 GB",
+        use_for="vision",
+        blurb="Fastest vision model that still reads UIs well",
+    ),
+    OllamaRec(
         name="qwen2-vl:7b",
         label="Qwen2-VL 7B",
         size="4.5 GB",
