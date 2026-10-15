@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-12" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.12 — Accurate clicks</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Clicks and pointing with Gemini now use its 0-1000 grid, so they land on the target</li>
+        <li>• Glance never reads action names or coordinates aloud</li>
+        <li>• Keyboard shortcuts are preferred, and Glance stops honestly if it is stuck</li>
+      </ul>
+
       <h2 id="v0-3-11" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.11 — Fast answers, visible steps</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
