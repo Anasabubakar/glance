@@ -134,6 +134,8 @@ class Config:
         # Clear model override when switching providers — the new provider's
         # default is better than carrying a stale model id across providers.
         os.environ.pop("GLANCE_ACTIVE_MODEL", None)
+        os.environ.pop("GLANCE_TEXT_MODEL", None)
+        self.remove_env_values(["GLANCE_ACTIVE_MODEL", "GLANCE_TEXT_MODEL"])
         # Write to .env so the choice survives restarts (user dir when frozen).
         self._persist_env("GLANCE_ACTIVE_LLM", name)
 
@@ -141,6 +143,14 @@ class Config:
         """Runtime switch — next query uses this specific model. Persisted to .env."""
         os.environ["GLANCE_ACTIVE_MODEL"] = model_id
         self._persist_env("GLANCE_ACTIVE_MODEL", model_id)
+
+    def text_model_pick(self) -> str | None:
+        """The model the user chose for plain chat (no screenshot), or None for the default."""
+        return os.environ.get("GLANCE_TEXT_MODEL", "").strip() or None
+
+    def set_text_model(self, model_id: str) -> None:
+        os.environ["GLANCE_TEXT_MODEL"] = model_id
+        self._persist_env("GLANCE_TEXT_MODEL", model_id)
 
     def _persist_env(self, key: str, value: str) -> None:
         """Write a key=value pair to the writable .env file."""
