@@ -52,8 +52,35 @@ def available() -> bool:
     ok = False
     if os.environ.get("GLANCE_NO_GNOME_BRIDGE", "") != "1":
         ok = _call("GetState", timeout=3.0) is not None
+        if ok:
+            ok = _has_capture()
     _avail_cache = (now, ok)
     return ok
+
+
+_capable = False
+
+
+def _has_capture() -> bool:
+    """The compositor keeps running the extension code it loaded at login, so right
+    after an update it can be an OLD copy with no Screenshot/Click methods."""
+    global _capable
+    if _capable:
+        return True
+    try:
+        r = subprocess.run(["gdbus", "introspect", "--session", "--dest", SERVICE,
+                            "--object-path", PATH], capture_output=True, text=True, timeout=4)
+        _capable = "Screenshot(" in r.stdout
+    except (OSError, subprocess.TimeoutExpired):
+        _capable = False
+    return _capable
+
+
+def outdated() -> bool:
+    """True when the extension is running but is an old copy: log out and back in."""
+    if os.environ.get("GLANCE_NO_GNOME_BRIDGE", "") == "1":
+        return False
+    return _call("GetState", timeout=3.0) is not None and not _has_capture()
 
 
 def screenshot() -> Optional[dict]:

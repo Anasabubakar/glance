@@ -197,6 +197,18 @@ def capture_all_screens(max_width: int = 1280) -> List[ScreenShot]:
     return results
 
 
+def no_screen_message() -> str:
+    """What to say when a capture is impossible, with the real reason when known."""
+    try:
+        from screen import gnome_bridge
+        if sys.platform.startswith("linux") and gnome_bridge.outdated():
+            return ("I need one more step to see your screen: log out and back in once "
+                    "so the updated Glance extension loads.")
+    except Exception:
+        pass
+    return "I can't see your screen right now."
+
+
 _warned_blank = False
 
 

@@ -22,7 +22,7 @@ import time
 
 from config import cfg
 from session_log import slog
-from screen.capture import capture_all_screens
+from screen.capture import capture_all_screens, no_screen_message
 from ui.panel import AppState
 
 
@@ -835,7 +835,7 @@ class ActionsMixin:
             return
         shots = capture_all_screens()
         if not shots:
-            await self._reply_local("I can't see your screen right now.")
+            await self._reply_local(no_screen_message())
             return
         tw, th = _pick_resolution(shots[0].width, shots[0].height)
 
@@ -982,7 +982,7 @@ class ActionsMixin:
             return
         shots = capture_all_screens()
         if not shots:
-            await self._reply_local("I can't see your screen right now.")
+            await self._reply_local(no_screen_message())
             return
         tw, th = _pick_resolution(shots[0].width, shots[0].height)
 
@@ -1118,7 +1118,7 @@ class ActionsMixin:
             return
         shots = capture_all_screens()
         if not shots:
-            await self._reply_local("I can't see your screen right now.")
+            await self._reply_local(no_screen_message())
             return
         tw, th = _pick_resolution(shots[0].width, shots[0].height)
 
