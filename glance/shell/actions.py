@@ -30,7 +30,11 @@ class ActionsMixin:
     def _get_actuator(self):
         if getattr(self, "_actuator", None) is None:
             import sys as _sys
-            if _sys.platform == "win32":
+            from screen import gnome_bridge
+            if _sys.platform.startswith("linux") and gnome_bridge.available():
+                # Wayland: clicks/typing must be injected by the compositor.
+                self._actuator = gnome_bridge.GnomeActuator()
+            elif _sys.platform == "win32":
                 from glance.agent.actuation import WindowsActuator
                 self._actuator = WindowsActuator()
             else:
@@ -726,13 +730,96 @@ class ActionsMixin:
           • OpenAI → Responses API with computer_use_preview
           • Others → text-based tool-call fallback
         Safety: prompt-level + step cap + Esc-to-stop."""
+        # Trivial requests are handled deterministically, with no model involved.
+        from fastpath import find_folder, parse_open_folder
+        parsed = parse_open_folder(instruction)
+        folder = find_folder(*parsed) if parsed else None
+        if folder is not None:
+            import subprocess as _sp
+            import sys as _sys
+            slog("ACT", f"open folder {folder}")
+            if _sys.platform == "win32":
+                os.startfile(str(folder))                    # noqa: S606
+            else:
+                _sp.Popen(["xdg-open", str(folder)], stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+            await self._reply_local(f"Opening {folder.name}.")
+            return
         provider = cfg.llm_provider()
-        if provider == "claude" and cfg.anthropic_api_key:
+        if provider == "cloud":
+            # The free tier is text-only: it cannot see the screen, so it must not
+            # click. It can still launch apps, open URLs and press keys.
+            await self._run_task_textonly(instruction)
+        elif provider == "claude" and cfg.anthropic_api_key:
             await self._run_task_anthropic(instruction)
         elif provider == "openai" and cfg.openai_api_key:
             await self._run_task_openai(instruction)
         else:
             await self._run_task_generic(instruction)
+
+    async def _run_task_textonly(self, instruction: str):
+        """Free (text-only) tier: plan launch/open/type/key steps from the request
+        alone. No screenshots and NO coordinate clicks (the model is blind), and
+        we say so plainly when the task needs a click."""
+        import json as _json
+        system = (
+            "You turn a spoken request into a short list of keyboard/launch steps "
+            "for the user's desktop. You CANNOT see the screen, so never click or "
+            "give coordinates. Reply with ONLY JSON: "
+            '{"say": "<one short sentence to speak>", "steps": [ ... ]} where each '
+            'step is one of: {"action":"launch_app","name":"files|terminal|firefox|'
+            'chrome|code|calculator|text editor|<app name>"}, '
+            '{"action":"open_url","target":"https://..."}, '
+            '{"action":"key","text":"ctrl+l"}, {"action":"type","text":"..."}. '
+            "To run a command or submit text, END the type text with a newline "
+            "(\\n). In the file manager, press ctrl+l then type the full path "
+            "ending in \\n; ~ is the home folder and the Desktop is ~/Desktop. "
+            "At most 6 steps. If the request needs clicking something you cannot "
+            'locate (a button, a menu item), return an empty steps list and put in '
+            '"say" that you need a vision model (Ollama, or your own key under API '
+            "Keys) to click on things. Never claim to have done something you "
+            "did not do.")
+        raw = ""
+        try:
+            async for chunk in self._get_llm().stream_response(
+                    user_text=instruction, screenshots_b64=[], history=[],
+                    system_prompt=system, model=self._current_model):
+                raw += chunk
+        except Exception as e:
+            self.sig_error.emit(str(e))
+            await self._reply_local("I couldn't reach my brain just now.")
+            return
+        try:
+            start, end = raw.index("{"), raw.rindex("}") + 1
+            plan = _json.loads(raw[start:end])
+        except Exception:
+            await self._reply_local("I didn't catch how to do that. Could you say it another way?")
+            return
+        steps = [st for st in (plan.get("steps") or []) if isinstance(st, dict)][:6]
+        say = (plan.get("say") or "").strip()
+        if not steps:
+            await self._reply_local(say or "I need a vision model to click on things. "
+                                    "Add one under API Keys, or use Ollama.")
+            return
+        slog("ACT", f"text-only plan: {[st.get('action') for st in steps]}")
+        try:
+            actuator = self._get_actuator()
+        except Exception:
+            actuator = None
+        for st in steps:
+            if self._cancel_flag:
+                break
+            a = (st.get("action") or "").lower()
+            if a == "launch_app":
+                self._launch_app(st.get("name", ""))
+            elif a == "open_url":
+                self._open_url(st.get("target", ""))
+            elif a in ("key", "type") and actuator is not None:
+                self._exec_action(actuator, a, None, None, st.get("text", ""))
+            # Give a freshly launched app time to open its window before we
+            # send it keys (keys sent too early are lost).
+            await asyncio.sleep(2.5 if a in ("launch_app", "open_url") else 0.6)
+        if say:
+            await self._reply_local(say)
 
     async def _run_task_generic(self, instruction: str):
         """Fallback computer-use via text-based tool calls for any provider."""
