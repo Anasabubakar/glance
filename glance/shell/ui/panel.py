@@ -4,18 +4,18 @@ from typing import Callable, Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QScrollArea, QSizePolicy, QComboBox, QFrame
+    QPushButton, QScrollArea, QSizePolicy, QComboBox, QFrame, QStackedWidget
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QColor, QPainter, QPen, QBrush, QFont, QCursor
 
-from ui.design import (
-    PANEL_QSS, PANEL_WIDTH, PANEL_HEIGHT, PANEL_RADIUS,
-    STATE_IDLE, STATE_LISTENING, STATE_THINKING, STATE_SPEAKING,
-    FONT_TITLE, FONT_STATUS, FONT_RESPONSE, FONT_LABEL,
-    SURFACE, TEXT_SECONDARY, BORDER, ANIM_FAST_MS
-)
+from ui.launcher import design_tokens as dt
+from ui.launcher import icons
+from ui.launcher.widgets import GradientButton, IconButton, PillBadge, StatusDot
 from config import cfg
+
+PANEL_WIDTH, PANEL_HEIGHT, PANEL_RADIUS = 384, 580, 22
+ANIM_FAST_MS = 150
 
 
 class AppState(Enum):
@@ -26,18 +26,33 @@ class AppState(Enum):
 
 
 STATE_LABELS = {
-    AppState.IDLE:      "Say 'Glance' or Ctrl+Alt+M",
-    AppState.LISTENING: "Listening...",
-    AppState.THINKING:  "Thinking...",
-    AppState.SPEAKING:  "Speaking...",
+    AppState.IDLE:      "Ready",
+    AppState.LISTENING: "Listening",
+    AppState.THINKING:  "Thinking",
+    AppState.SPEAKING:  "Speaking",
 }
 
 STATE_COLORS = {
-    AppState.IDLE:      STATE_IDLE,
-    AppState.LISTENING: STATE_LISTENING,
-    AppState.THINKING:  STATE_THINKING,
-    AppState.SPEAKING:  STATE_SPEAKING,
+    AppState.IDLE:      QColor(107, 112, 131),
+    AppState.LISTENING: QColor(61, 214, 140),
+    AppState.THINKING:  QColor(110, 139, 255),
+    AppState.SPEAKING:  QColor(245, 165, 36),
 }
+
+
+def _hotkey_text() -> str:
+    parts = [p.strip().capitalize() if len(p.strip()) > 1 else p.strip().upper()
+             for p in str(getattr(cfg, "hotkey", "ctrl+alt+m")).split("+")]
+    return " + ".join(parts)
+
+
+def _state_hint(state: "AppState") -> str:
+    return {
+        AppState.IDLE: f"Say “Glance” or hold {_hotkey_text()}",
+        AppState.LISTENING: "Go ahead, I'm listening",
+        AppState.THINKING: "Working on it…",
+        AppState.SPEAKING: "Tap Esc to stop",
+    }[state]
 
 
 class WaveformWidget(QWidget):
@@ -45,8 +60,8 @@ class WaveformWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(36)
-        self._levels = [0.0] * 12
+        self.setFixedHeight(40)
+        self._levels = [0.0] * 20
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._decay)
 
@@ -65,7 +80,7 @@ class WaveformWidget(QWidget):
 
     def stop(self):
         self._timer.stop()
-        self._levels = [0.0] * 12
+        self._levels = [0.0] * 20
         self.update()
 
     def paintEvent(self, event):
@@ -79,7 +94,7 @@ class WaveformWidget(QWidget):
             bar_h = max(4, int(level * (h - 8)))
             y = (h - bar_h) // 2
             alpha = max(80, int(level * 255))
-            color = QColor(0, 120, 255, alpha)
+            color = QColor(91, 124, 255, alpha)
             painter.setBrush(QBrush(color))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(x, y, bar_w, bar_h, bar_w // 2, bar_w // 2)
@@ -120,16 +135,12 @@ def _copilot_model_choices() -> list[tuple[str, str]]:
     return out
 
 
-class ProviderBadge(QLabel):
-    """Small pill showing active provider."""
+class ProviderBadge(PillBadge):
+    """Small pill showing the active provider."""
 
     def __init__(self, provider: str, parent=None):
-        super().__init__(parent)
+        super().__init__("", "accent", parent)
         self.set_provider(provider)
-        self.setStyleSheet(
-            "background: rgba(0,120,255,25); border: 1px solid rgba(0,120,255,100);"
-            "border-radius: 8px; color: rgb(140,180,255); font-size: 11px; padding: 2px 8px;"
-        )
 
     def set_provider(self, provider: str):
         self.setText(PROVIDER_LABELS.get(provider, provider))
@@ -165,7 +176,9 @@ class CompanionPanel(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedSize(PANEL_WIDTH, PANEL_HEIGHT)
         self.setObjectName("panel")
-        self.setStyleSheet(PANEL_QSS)
+        # Fonts / label / scrollbar / combo rules from the design system; the panel
+        # background itself is painted in paintEvent.
+        self.setStyleSheet(dt.APP_QSS + dt.arrow_qss())
         self.setAcceptDrops(True)   # drag-drop PDFs / DOCX / TXT
 
     # ── Drag-drop handlers ───────────────────────────────────────────────────
@@ -182,87 +195,120 @@ class CompanionPanel(QWidget):
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(18, 18, 18, 18)
-        root.setSpacing(12)
+        root.setContentsMargins(20, 18, 20, 18)
+        root.setSpacing(14)
 
-        # Header
+        # ── Header ──────────────────────────────────────────────────────────
         header = QHBoxLayout()
+        header.setSpacing(10)
+        mark = QLabel()
+        pm = dt.load_pixmap("glance-flat.png", size=30)
+        if not pm.isNull():
+            mark.setPixmap(pm)
+        mark.setFixedSize(30, 30)
+        header.addWidget(mark)
         title = QLabel("Glance")
-        title.setObjectName("title")
-        title.setFont(FONT_TITLE)
+        title.setFont(dt.font(17, dt.QFont.Weight.Bold))
         header.addWidget(title)
         header.addStretch()
-        provider = cfg.llm_provider()
-        self._badge = ProviderBadge(provider)
+        self._badge = ProviderBadge(cfg.llm_provider())
         header.addWidget(self._badge)
-
-        # Minimize button — hides the panel back to tray
-        self._min_btn = QPushButton("—")
-        self._min_btn.setFixedSize(24, 24)
-        self._min_btn.setStyleSheet(
-            "QPushButton { background: rgba(60,60,75,180); color: rgb(220,220,230);"
-            "border: none; border-radius: 12px; font-size: 14px; font-weight: bold; }"
-            "QPushButton:hover { background: rgba(80,80,95,220); }"
-        )
-        self._min_btn.setToolTip("Hide panel (use tray to reopen)")
+        self._min_btn = IconButton(icon="x", tooltip="Hide (reopen from the tray icon)")
+        self._min_btn.setFixedSize(32, 32)
         self._min_btn.clicked.connect(self.hide)
         header.addWidget(self._min_btn)
         root.addLayout(header)
 
-        # Divider
-        div = QFrame()
-        div.setFrameShape(QFrame.Shape.HLine)
-        div.setStyleSheet("color: rgba(60,60,75,180);")
-        root.addWidget(div)
-
-        # Status row
-        self._status_dot = QLabel("●")
-        self._status_dot.setStyleSheet(f"color: rgb({STATE_IDLE.red()},{STATE_IDLE.green()},{STATE_IDLE.blue()}); font-size: 10px;")
+        # ── Status block ────────────────────────────────────────────────────
+        status = QFrame()
+        status.setObjectName("status_card")
+        status.setStyleSheet(f"QFrame#status_card {{ background: {dt.BG_CARD.name()}; "
+                             f"border: 1px solid {dt.BORDER_CSS}; border-radius: 16px; }}")
+        sl = QVBoxLayout(status)
+        sl.setContentsMargins(16, 14, 16, 14)
+        sl.setSpacing(4)
+        top = QHBoxLayout()
+        top.setSpacing(10)
+        self._status_dot = StatusDot(STATE_COLORS[AppState.IDLE], 9)
+        top.addWidget(self._status_dot)
         self._status_label = QLabel(STATE_LABELS[AppState.IDLE])
-        self._status_label.setObjectName("status")
-        self._status_label.setFont(FONT_STATUS)
-        status_row = QHBoxLayout()
-        status_row.addWidget(self._status_dot)
-        status_row.addWidget(self._status_label)
-        status_row.addStretch()
-        root.addLayout(status_row)
-
-        # Waveform
+        self._status_label.setFont(dt.font(16, dt.QFont.Weight.DemiBold))
+        top.addWidget(self._status_label)
+        top.addStretch()
+        sl.addLayout(top)
+        self._hint_label = QLabel(_state_hint(AppState.IDLE))
+        self._hint_label.setFont(dt.font(13))
+        self._hint_label.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
+        self._hint_label.setWordWrap(True)
+        sl.addWidget(self._hint_label)
         self._waveform = WaveformWidget()
         self._waveform.setVisible(False)
-        root.addWidget(self._waveform)
+        sl.addWidget(self._waveform)
+        root.addWidget(status)
 
-        # Response area
+        # ── Response ────────────────────────────────────────────────────────
+        self._stack = QStackedWidget()
+        # empty state
+        empty = QWidget()
+        el = QVBoxLayout(empty)
+        el.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        el.setSpacing(10)
+        ic = QLabel()
+        ic.setPixmap(icons.pixmap("mic", dt.TEXT_DIM.name(), 30))
+        ic.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        el.addWidget(ic)
+        et = QLabel("Ask about anything on your screen")
+        et.setFont(dt.font(14, dt.QFont.Weight.Medium))
+        et.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        el.addWidget(et)
+        eh = QLabel("Glance will answer here and point at what it's talking about.")
+        eh.setFont(dt.font(13))
+        eh.setStyleSheet(f"color: {dt.TEXT_DIM.name()};")
+        eh.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        eh.setWordWrap(True)
+        el.addWidget(eh)
+        self._stack.addWidget(empty)
+        # response
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }"
+                             "QScrollArea > QWidget > QWidget { background: transparent; }")
+        holder = QWidget()
+        hl = QVBoxLayout(holder)
+        hl.setContentsMargins(2, 2, 6, 2)
+        who = QLabel("GLANCE")
+        who.setFont(dt.font(11, dt.QFont.Weight.DemiBold))
+        who.setStyleSheet(f"color: {dt.TEXT_DIM.name()}; letter-spacing: 1px;")
+        hl.addWidget(who)
         self._response_label = QLabel()
-        self._response_label.setObjectName("response")
-        self._response_label.setFont(FONT_RESPONSE)
+        self._response_label.setFont(dt.font(14))
         self._response_label.setWordWrap(True)
         self._response_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self._response_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._response_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        scroll.setWidget(self._response_label)
-        root.addWidget(scroll, stretch=1)
+        self._response_label.setStyleSheet("color: #DDE0EA; line-height: 150%;")
+        hl.addWidget(self._response_label)
+        hl.addStretch()
+        scroll.setWidget(holder)
+        self._stack.addWidget(scroll)
+        root.addWidget(self._stack, stretch=1)
 
-        # Push-to-talk button
-        self._ptt_btn = QPushButton("Say 'Glance' or hold Ctrl+Alt+M")
-        self._ptt_btn.setObjectName("hotkey_btn")
-        self._ptt_btn.setFont(FONT_LABEL)
-        self._ptt_btn.setFixedHeight(44)
+        # ── Push-to-talk ────────────────────────────────────────────────────
+        self._ptt_btn = GradientButton("Hold to talk", icon="mic")
+        self._ptt_btn.setFixedHeight(48)
+        self._ptt_btn.pressed.connect(self.on_push_to_talk_pressed.emit)
+        self._ptt_btn.released.connect(self.on_push_to_talk_released.emit)
         root.addWidget(self._ptt_btn)
 
-        # Footer: model selector + provider info
+        # ── Footer: model ───────────────────────────────────────────────────
         footer = QHBoxLayout()
-        lbl = QLabel("Model:")
-        lbl.setFont(FONT_LABEL)
-        lbl.setStyleSheet("color: rgb(100,100,120); font-size: 11px;")
+        footer.setSpacing(10)
+        lbl = QLabel("Model")
+        lbl.setFont(dt.FONT_CAPTION)
+        lbl.setStyleSheet(f"color: {dt.TEXT_DIM.name()};")
         self._model_combo = QComboBox()
-        self._model_combo.setStyleSheet(
-            "background: rgba(40,40,50,200); border: 1px solid rgba(60,60,75,180);"
-            "border-radius: 6px; color: rgb(200,200,215); padding: 2px 6px; font-size: 11px;"
-        )
+        self._model_combo.setMinimumHeight(34)
         self._populate_models()
         # Emit the model id (stored in userData), not the display label
         self._model_combo.currentIndexChanged.connect(
@@ -287,6 +333,9 @@ class CompanionPanel(QWidget):
         elif provider in ("claude", "openai", "gemini"):
             try:
                 from ai.model_registry import cached_models
+                if provider == "gemini":
+                    # Google retires model names often; "auto" lets Glance pick a working one.
+                    self._model_combo.addItem("Automatic (recommended)", userData="auto")
                 for m in cached_models(provider):
                     label = m["id"]
                     if not m.get("vision"):
@@ -322,32 +371,37 @@ class CompanionPanel(QWidget):
 
     def set_state(self, state: AppState):
         self._state = state
-        color = STATE_COLORS[state]
-        self._status_dot.setStyleSheet(
-            f"color: rgb({color.red()},{color.green()},{color.blue()}); font-size: 10px;"
-        )
+        self._status_dot.set_color(STATE_COLORS[state])
         self._status_label.setText(STATE_LABELS[state])
+        self._hint_label.setText(_state_hint(state))
+        self._hint_label.setVisible(bool(_state_hint(state)))
         self._waveform.setVisible(state == AppState.LISTENING)
         if state == AppState.LISTENING:
             self._waveform.start()
+            self._ptt_btn.setText("Listening…  release to send")
         else:
             self._waveform.stop()
+            self._ptt_btn.setText("Hold to talk")
+
+    def _show_response(self, text: str):
+        self._response_label.setText(text)
+        self._stack.setCurrentIndex(1 if text.strip() else 0)
 
     def update_response(self, text: str):
-        """Append streaming text chunk."""
+        """Replace the response text."""
         self._response_text = text
-        self._response_label.setText(text)
+        self._show_response(text)
 
     def append_response_chunk(self, chunk: str):
         self._response_text += chunk
-        self._response_label.setText(self._response_text)
+        self._show_response(self._response_text)
 
     def set_audio_level(self, rms: float):
         self._waveform.set_level(rms)
 
     def clear_response(self):
         self._response_text = ""
-        self._response_label.setText("")
+        self._show_response("")
 
     def show_copilot_code(self, user_code: str, verification_uri: str):
         """Thread-safe: can be called from any thread. Emits a queued signal
@@ -371,12 +425,12 @@ class CompanionPanel(QWidget):
             "3.  Click Authorize in GitHub.\n\n"
             "Glance will sign in automatically once you authorize."
         )
-        self._response_label.setText(self._response_text)
+        self._show_response(self._response_text)
         self._status_label.setText("Waiting for Copilot authorization…")
 
     def _on_copilot_error(self, error: str):
         self._response_text = f"Copilot login failed:\n\n{error}"
-        self._response_label.setText(self._response_text)
+        self._show_response(self._response_text)
 
     # ── Mouse drag to reposition ──────────────────────────────────────────────
     def mousePressEvent(self, event):
@@ -387,11 +441,11 @@ class CompanionPanel(QWidget):
         if event.buttons() == Qt.MouseButton.LeftButton and hasattr(self, '_drag_pos'):
             self.move(event.globalPosition().toPoint() - self._drag_pos)
 
-    # ── Painting: rounded glass background ───────────────────────────────────
+    # ── Painting: rounded surface ─────────────────────────────────────────────
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(QBrush(QColor(18, 18, 22, 235)))
-        painter.setPen(QPen(QColor(60, 60, 75, 180), 1))
-        painter.drawRoundedRect(self.rect(), PANEL_RADIUS, PANEL_RADIUS)
+        painter.setBrush(QBrush(QColor(15, 16, 21, 248)))
+        painter.setPen(QPen(QColor(255, 255, 255, 30), 1))
+        painter.drawRoundedRect(self.rect().adjusted(0, 0, -1, -1), PANEL_RADIUS, PANEL_RADIUS)
         painter.end()
