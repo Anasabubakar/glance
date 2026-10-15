@@ -726,6 +726,13 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
         await self._end_capture_and_process()
 
     async def _end_capture_and_process(self, preset: str = ""):
+        self._listener.set_busy(True)
+        try:
+            await self._end_capture_and_process_inner(preset)
+        finally:
+            self._listener.set_busy(False)
+
+    async def _end_capture_and_process_inner(self, preset: str = ""):
         gen = getattr(self, "_gen", 0)   # this turn's id; a barge-in bumps it
         _log_turn()                      # reset the +N.NNs clock → true per-turn latency
         pcm = self._listener.stop_recording()

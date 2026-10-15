@@ -310,8 +310,13 @@ class AmbientListener:
 
     # ── Wake-word transcription (off the audio thread) ────────────────────────
 
+    def set_busy(self, busy: bool) -> None:
+        """While Glance is working on a request, skip wake-word transcription: it
+        competes for the CPU (slowing the answer) and only re-hears Glance itself."""
+        self._busy = bool(busy)
+
     def _dispatch_wake_check(self, pcm: bytes):
-        if self._wake_inflight:
+        if self._wake_inflight or getattr(self, "_busy", False):
             return
         self._wake_inflight = True
         t = threading.Thread(target=self._check_wake, args=(pcm,), daemon=True)
