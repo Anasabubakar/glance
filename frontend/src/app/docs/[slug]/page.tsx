@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-7" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.7 — Your own key, fast models</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Glance Cloud is paused: use your own Gemini, Claude, OpenAI or OpenAI-compatible key, or local Ollama</li>
+        <li>• Faster default models: Claude Haiku 4.5, GPT-4o mini, newest Gemini Flash</li>
+        <li>• Qwen2.5-VL 3B is the first recommended local vision model</li>
+      </ul>
+
       <h2 id="v0-3-6" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.6 — A redesigned app</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
