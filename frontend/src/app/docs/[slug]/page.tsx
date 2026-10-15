@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-9" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.9 — Text and vision models</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Choose a text model and a vision model separately on the Models page</li>
+        <li>• Model choices apply immediately, including provider switches</li>
+        <li>• New default ElevenLabs voice</li>
+      </ul>
+
       <h2 id="v0-3-8" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.8 — Faster answers</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
