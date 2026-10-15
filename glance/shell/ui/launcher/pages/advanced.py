@@ -1,45 +1,44 @@
 """
-Advanced page — env editor, debug toggle, reset, data directory.
+Advanced — power-user settings and reset. Secrets (API keys) are deliberately NOT
+listed here: they live under AI & Keys and are never shown in full.
 """
 
-import sys
+from __future__ import annotations
+
 import os
-import subprocess
+import sys
 from pathlib import Path
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
-)
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QHBoxLayout, QHeaderView, QLabel, QMessageBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
+)
 
-from ..page_base import BasePage
-from ..widgets import Card, FlatButton, DangerButton, GradientButton, SettingRow
 from .. import design_tokens as dt
+from ..page_base import BasePage
+from ..widgets import Banner, Card, DangerButton, GradientButton
 
-_KNOWN_KEYS = [
-    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY",
-    "DEEPGRAM_API_KEY", "ELEVENLABS_API_KEY", "TAVILY_API_KEY",
-    "GLANCE_HOTKEY", "OLLAMA_HOST", "OLLAMA_MODEL",
-    "GLANCE_ACTIVE_LLM", "GLANCE_ACTIVE_MODEL",
-    "GLANCE_WEB_SEARCH", "GLANCE_WAKE_WORD", "GLANCE_SLOW_MODE",
-    "GLANCE_QUIZ_MODE", "GLANCE_PRIVACY", "GLANCE_CODE_MODE",
-    "GLANCE_MULTILINGUAL", "GLANCE_OCR_FALLBACK", "GLANCE_JOURNAL",
-    "GLANCE_DEBUG", "GLANCE_LAST_PAGE",
+_EDITABLE = [
+    ("GLANCE_HOTKEY", "Push-to-talk hotkey, e.g. ctrl+alt+m"),
+    ("GLANCE_ACTIVE_LLM", "Force a provider: cloud, gemini, claude, openai, ollama, custom"),
+    ("GLANCE_ACTIVE_MODEL", "Pin one model id (blank = automatic)"),
+    ("GLANCE_CLOUD_URL", "Glance Cloud address"),
+    ("GLANCE_NO_CLOUD", "Set to 1 to never fall back to Glance Cloud"),
+    ("GLANCE_OVERLAY", "Cursor overlay: gnome or qt"),
+    ("OLLAMA_HOST", "Where Ollama listens, e.g. http://localhost:11434"),
 ]
 
 
 def _user_dir() -> Path:
     if sys.platform == "win32":
         return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Glance"
-    return Path(os.environ.get("XDG_DATA_HOME",
-                                Path.home() / ".local" / "share")) / "Glance"
+    return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "Glance"
 
 
 class AdvancedPage(BasePage):
     title = "Advanced"
-    icon = "⚡"
-    subtitle = "Environment variables, debug settings, and reset options."
+    icon = "terminal"
+    subtitle = "Power-user settings and reset."
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -49,153 +48,98 @@ class AdvancedPage(BasePage):
         except Exception:
             self._cfg = None
 
-        # Debug toggle
-        self.body_layout.addWidget(self.section_label("Debug"))
-        debug_on = os.environ.get("GLANCE_DEBUG", "0").strip() in ("1", "true")
-        self._debug_row = SettingRow(
-            "Debug Logging",
-            "Enable verbose debug output",
-            checked=debug_on,
-        )
-        self._debug_row.toggled.connect(self._toggle_debug)
-        self.body_layout.addWidget(self._debug_row)
-
-        # Data directory
-        self.body_layout.addWidget(self.section_label("Data Directory"))
-        dir_card = Card()
-        self._dir_label = QLabel(str(_user_dir()))
-        self._dir_label.setFont(dt.FONT_MONO)
-        self._dir_label.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
-        self._dir_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
-        dir_card.add_widget(self._dir_label)
-        open_btn = FlatButton("Open in File Manager")
-        open_btn.clicked.connect(self._open_data_dir)
-        dir_card.add_widget(open_btn)
-        self.body_layout.addWidget(dir_card)
-
-        # Environment variables editor
-        self.body_layout.addWidget(self.section_label("Environment Variables"))
+        self.body_layout.addWidget(self.section_label("Environment settings"))
         self.body_layout.addWidget(self.hint_label(
-            "Edit Glance environment variables. Changes are saved to your .env file."
-        ))
-
-        self._table = QTableWidget(len(_KNOWN_KEYS), 2)
-        self._table.setHorizontalHeaderLabels(["Variable", "Value"])
-        self._table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.ResizeToContents
-        )
-        self._table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
+            "These are saved to your settings file. Most need a restart of Glance to take effect."))
+        self._table = QTableWidget(len(_EDITABLE), 3)
+        self._table.setHorizontalHeaderLabels(["Setting", "Value", "What it does"])
+        hh = self._table.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self._table.verticalHeader().setVisible(False)
+        self._table.verticalHeader().setDefaultSectionSize(40)
+        self._table.setShowGrid(False)
+        self._table.setAlternatingRowColors(False)
+        self._table.setFrameShape(QTableWidget.Shape.NoFrame)
         self._table.setStyleSheet(f"""
-            QTableWidget {{
-                background: {dt.BG_CARD.name()};
-                color: {dt.TEXT_PRIMARY.name()};
-                border: 1px solid rgba(255,255,255,0.06);
-                border-radius: {dt.CARD_RADIUS}px;
-                gridline-color: rgba(255,255,255,0.04);
-            }}
-            QTableWidget::item {{
-                padding: 4px 8px;
-                font-size: 12px;
-            }}
-            QHeaderView::section {{
-                background: {dt.BG_ELEVATED.name()};
-                color: {dt.TEXT_MUTED.name()};
-                border: none;
-                padding: 6px 8px;
-                font-size: 11px;
-            }}
+            QTableWidget {{ background: {dt.BG_CARD.name()}; border: 1px solid {dt.BORDER_CSS};
+                            border-radius: {dt.CARD_RADIUS}px; gridline-color: transparent; outline: none; }}
+            QTableWidget::item {{ padding: 0 12px; border-bottom: 1px solid {dt.BORDER_CSS}; }}
+            QTableWidget::item:selected {{ background: {dt.ACCENT_SOFT}; color: {dt.TEXT_PRIMARY.name()}; }}
+            QHeaderView {{ background: transparent; border: none; }}
+            QTableCornerButton::section {{ background: transparent; border: none; }}
+            QHeaderView::section {{ background: transparent; color: {dt.TEXT_DIM.name()}; border: none;
+                                    border-bottom: 1px solid {dt.BORDER_CSS}; padding: 10px 12px;
+                                    font-size: 11px; font-weight: 600; text-align: left; }}
         """)
-        self._table.setMinimumHeight(300)
-        self.body_layout.addWidget(self._table, 1)
+        self._table.setMinimumHeight(40 * (len(_EDITABLE) + 1) + 8)
+        self._table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        for i, (key, _d) in enumerate(_EDITABLE):
+            k = QTableWidgetItem(key)
+            k.setFlags(k.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            k.setForeground(dt.TEXT_MUTED)
+            self._table.setItem(i, 0, k)
+            d = QTableWidgetItem(_d)
+            d.setFlags(d.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            d.setForeground(dt.TEXT_DIM)
+            self._table.setItem(i, 2, d)
+        self.body_layout.addWidget(self._table)
+        row = QHBoxLayout()
+        save = GradientButton("Save changes")
+        save.clicked.connect(self._save_all)
+        row.addWidget(save)
+        row.addStretch()
+        self.body_layout.addLayout(row)
 
-        save_btn = GradientButton("Save All")
-        save_btn.setFixedHeight(40)
-        save_btn.clicked.connect(self._save_all)
-        self.body_layout.addWidget(save_btn)
-
-        # Reset
         self.body_layout.addWidget(self.section_label("Reset"))
-        reset_btn = DangerButton("Reset to Defaults")
-        reset_btn.clicked.connect(self._reset)
-        self.body_layout.addWidget(reset_btn)
-        self.body_layout.addWidget(self.hint_label(
-            "Clears your .env file and removes the setup-complete flag. "
-            "Cannot be undone."
-        ))
+        card = Card(padding=20)
+        col = QVBoxLayout()
+        col.setSpacing(3)
+        t = QLabel("Reset Glance")
+        t.setFont(dt.font(14, dt.QFont.Weight.Medium))
+        col.addWidget(t)
+        col.addWidget(self.hint_label("Clears your saved settings and keys on this computer. You'll set Glance up "
+                                      "again from scratch. This can't be undone."))
+        r = QHBoxLayout()
+        r.addLayout(col, 1)
+        btn = DangerButton("Reset…")
+        btn.clicked.connect(self._reset)
+        r.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        card.add_layout(r)
+        self.body_layout.addWidget(card)
         self.body_layout.addStretch()
 
     def on_activate(self):
-        for i, key in enumerate(_KNOWN_KEYS):
-            name_item = QTableWidgetItem(key)
-            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            self._table.setItem(i, 0, name_item)
+        for i, (key, _d) in enumerate(_EDITABLE):
             val = os.environ.get(key, "")
-            if not val and self._cfg:
-                attr = key.lower()
-                val = getattr(self._cfg, attr, "") or ""
-            val_item = QTableWidgetItem(val)
-            self._table.setItem(i, 1, val_item)
+            self._table.setItem(i, 1, QTableWidgetItem(val))
 
     def _save_all(self):
         if not self._cfg:
             return
         values = {}
-        for i in range(self._table.rowCount()):
-            key_item = self._table.item(i, 0)
-            val_item = self._table.item(i, 1)
-            if key_item and val_item:
-                values[key_item.text()] = val_item.text()
+        for i, (key, _d) in enumerate(_EDITABLE):
+            item = self._table.item(i, 1)
+            if item and item.text().strip():
+                values[key] = item.text().strip()
         self._cfg.save_env_values(values)
-        QMessageBox.information(self, "Saved", "Environment variables saved.")
-
-    def _toggle_debug(self, on: bool):
-        os.environ["GLANCE_DEBUG"] = "1" if on else "0"
-        if self._cfg:
-            self._cfg._persist_env("GLANCE_DEBUG", "1" if on else "0")
-
-    def _open_data_dir(self):
-        d = _user_dir()
-        d.mkdir(parents=True, exist_ok=True)
-        if sys.platform == "win32":
-            os.startfile(str(d))
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", str(d)])
-        else:
-            subprocess.Popen(["xdg-open", str(d)])
+        QMessageBox.information(self, "Saved", "Settings saved. Restart Glance to apply them.")
 
     def _reset(self):
-        reply = QMessageBox.question(
-            self, "Reset to Defaults",
-            "This will clear your .env file and remove the setup-complete flag.\n\n"
-            "You will need to re-enter your API keys. This cannot be undone.\n\n"
-            "Continue?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(
+                self, "Reset Glance",
+                "This clears your saved settings and API keys from this computer.\n\nContinue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
         try:
-            frozen = getattr(sys, "frozen", False)
-            if sys.platform == "win32":
-                env_path = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Glance" / ".env"
-            else:
-                env_path = Path(
-                    os.environ.get("XDG_DATA_HOME",
-                                   Path.home() / ".local" / "share")
-                ) / "Glance" / ".env"
-            if not frozen:
-                shell_dir = Path(__file__).parents[3]
-                env_path = shell_dir / ".env"
+            env_path = _user_dir() / ".env"
+            if not getattr(sys, "frozen", False):
+                env_path = Path(__file__).parents[3] / ".env"
             if env_path.exists():
                 env_path.write_text("")
-            setup_flag = _user_dir() / ".setup_complete"
-            if setup_flag.exists():
-                setup_flag.unlink()
-            QMessageBox.information(self, "Reset Complete",
-                                    "Glance has been reset. Restart to apply.")
+            for name in (".setup_complete", "cloud_key"):
+                (_user_dir() / name).unlink(missing_ok=True)
+            QMessageBox.information(self, "Reset complete", "Glance has been reset. Restart it to set up again.")
         except Exception as e:
-            QMessageBox.warning(self, "Error", str(e))
+            QMessageBox.warning(self, "Couldn't reset", str(e))

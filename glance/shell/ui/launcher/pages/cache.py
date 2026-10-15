@@ -26,7 +26,7 @@ def _cache_dir() -> Path:
 
 class CachePage(BasePage):
     title = "Cache"
-    icon = "📦"
+    icon = "database"
     subtitle = "Manage model cache files and free disk space."
 
     def __init__(self, parent=None):

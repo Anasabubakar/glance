@@ -19,8 +19,8 @@ _LOG_PATH = Path.home() / ".glance" / "logs" / "session.log"
 
 
 class LogsPage(BasePage):
-    title = "Logs"
-    icon = "📄"
+    title = "Activity"
+    icon = "activity"
     subtitle = "View, filter, and export session logs."
 
     def __init__(self, parent=None):

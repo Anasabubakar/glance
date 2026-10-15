@@ -1,33 +1,45 @@
 """
-Ollama page — status, model selection, pull with progress.
+On this computer — run AI models locally with Ollama (private, offline).
+
+Status first (with a clear next step if Ollama isn't installed or running), then
+which downloaded models Glance should use, then one-click downloads.
 """
 
+from __future__ import annotations
+
+import subprocess
 import threading
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QProgressBar,
-)
-from PyQt6.QtCore import pyqtSignal, QObject, Qt
+from PyQt6.QtCore import QObject, Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QVBoxLayout, QWidget
 
-from ..page_base import BasePage
-from ..widgets import Card, FlatButton, GradientButton, StatusDot, ProgressCard
 from .. import design_tokens as dt
+from ..page_base import BasePage
+from ..widgets import (
+    Banner, Card, Divider, FlatButton, GradientButton, IconTile, PillBadge,
+)
+
+RECOMMENDED = [
+    ("qwen2.5vl:3b", "Qwen 2.5 VL 3B", "Sees your screen. Small and quick.", "~3 GB", True),
+    ("llama3.2-vision", "Llama 3.2 Vision", "Sees your screen. Larger, more capable.", "~8 GB", True),
+    ("llama3.2:3b", "Llama 3.2 3B", "Fast text chat and quick answers.", "~2 GB", False),
+    ("qwen3:8b", "Qwen 3 8B", "Stronger text reasoning.", "~5 GB", False),
+]
 
 
 class _StatusWorker(QObject):
     result = pyqtSignal(dict)
 
     def run(self):
-        data = {}
+        data = {"installed": False, "running": False, "models": []}
         try:
-            from ai.ollama_bootstrap import is_ollama_running, is_ollama_installed, list_installed_models
+            from ai.ollama_bootstrap import is_ollama_installed, is_ollama_running, list_installed_models
             data["installed"] = is_ollama_installed()
             data["running"] = is_ollama_running()
-            data["models"] = list_installed_models() if data["running"] else []
+            data["models"] = [str(m) for m in (list_installed_models() if data["running"] else [])]
         except Exception:
-            data["installed"] = False
-            data["running"] = False
-            data["models"] = []
+            pass
         try:
             from config import cfg
             data["vision_model"] = cfg.ollama_vision_model or ""
@@ -49,215 +61,231 @@ class _PullWorker(QObject):
     def run(self):
         try:
             from ai.ollama_bootstrap import pull_model
-            def on_progress(pct):
-                self.progress.emit(self.model_name, pct)
-            pull_model(self.model_name, on_progress)
+            pull_model(self.model_name, lambda pct: self.progress.emit(self.model_name, pct))
             self.finished.emit(self.model_name, True, "")
         except Exception as e:
-            self.finished.emit(self.model_name, False, str(e)[:120])
+            self.finished.emit(self.model_name, False, str(e)[:140])
+
+
+def _combo() -> QComboBox:
+    c = QComboBox()
+    c.setMinimumWidth(240)
+    return c
 
 
 class OllamaPage(BasePage):
-    title = "Ollama"
-    icon = "🦙"
-    subtitle = "Manage your local Ollama installation and models."
+    title = "On this computer"
+    icon = "cpu"
+    subtitle = "Run AI models locally with Ollama: private and offline."
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._workers: list = []
-
+        self._installed: list = []
+        self._pulling: set = set()
         try:
             from config import cfg
             self._cfg = cfg
         except Exception:
             self._cfg = None
 
-        # ── Status ─────────────────────────────────────────────────────
-        self.body_layout.addWidget(self.section_label("Status"))
-        status_card = Card()
-        status_row = QHBoxLayout()
-        self._status_dot = StatusDot(dt.TEXT_DIM)
-        status_row.addWidget(self._status_dot)
-        self._status_label = QLabel("Checking…")
-        self._status_label.setFont(dt.font(14, dt.QFont.Weight.DemiBold))
-        self._status_label.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()};")
-        status_row.addWidget(self._status_label)
-        status_row.addStretch()
-        self._host_label = QLabel("")
-        self._host_label.setFont(dt.FONT_CAPTION)
-        self._host_label.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
-        status_row.addWidget(self._host_label)
-        status_card.add_layout(status_row)
-        self.body_layout.addWidget(status_card)
+        # ── Status ──────────────────────────────────────────────────────────
+        self._status = Card(padding=20)
+        self.body_layout.addWidget(self._status)
+        self._status_banner = QVBoxLayout()
+        self.body_layout.addLayout(self._status_banner)
+        self._render_status("checking", "")
 
-        # ── Active Models ──────────────────────────────────────────────
-        self.body_layout.addWidget(self.section_label("Active Models"))
-        select_card = Card()
-        for kind, label in [("vision", "Vision Model"), ("text", "Text Model")]:
+        # ── Which models Glance uses ────────────────────────────────────────
+        self.body_layout.addWidget(self.section_label("Models Glance uses"))
+        self.body_layout.addWidget(self.hint_label("The vision model reads your screen; the text model handles "
+                                                   "everyday chat. Download models below."))
+        sel = Card(padding=20)
+        sel._layout.setSpacing(16)
+        for kind, label, desc in (("vision", "Vision model", "Used when Glance needs to see your screen"),
+                                  ("text", "Text model", "Used for quick answers and chat")):
             row = QHBoxLayout()
-            lbl = QLabel(label)
-            lbl.setFont(dt.FONT_BODY)
-            lbl.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()};")
-            row.addWidget(lbl)
-
-            combo = QComboBox()
-            combo.setMinimumWidth(220)
-            combo.setStyleSheet(dt.COMBO_QSS)
-            combo.currentTextChanged.connect(
-                lambda text, k=kind: self._set_model(k, text)
-            )
-            row.addWidget(combo, 1)
+            col = QVBoxLayout()
+            col.setSpacing(2)
+            t = QLabel(label)
+            t.setFont(dt.font(14, dt.QFont.Weight.Medium))
+            col.addWidget(t)
+            col.addWidget(self.hint_label(desc))
+            row.addLayout(col, 1)
+            combo = _combo()
+            combo.currentTextChanged.connect(lambda text, k=kind: self._set_model(k, text))
             setattr(self, f"_{kind}_combo", combo)
-            select_card.add_layout(row)
-        self.body_layout.addWidget(select_card)
+            row.addWidget(combo)
+            sel.add_layout(row)
+            if kind == "vision":
+                sel.add_widget(Divider())
+        self.body_layout.addWidget(sel)
 
-        # ── Installed Models ───────────────────────────────────────────
-        self.body_layout.addWidget(self.section_label("Installed Models"))
-        self._models_container = QVBoxLayout()
-        self._models_container.setSpacing(4)
-        self._no_models = QLabel("Checking…")
-        self._no_models.setFont(dt.FONT_CAPTION)
-        self._no_models.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
-        self._models_container.addWidget(self._no_models)
-        self.body_layout.addLayout(self._models_container)
-
-        # ── Pull Model ─────────────────────────────────────────────────
-        self.body_layout.addWidget(self.section_label("Pull New Model"))
-        pull_card = Card()
-        pull_row = QHBoxLayout()
-
-        self._pull_combo = QComboBox()
-        self._pull_combo.setMinimumWidth(260)
-        self._pull_combo.setEditable(True)
-        self._pull_combo.setStyleSheet(dt.COMBO_QSS)
-        # Populate with recommended models
-        for m in ("llama3.2:3b", "llama3.2-vision", "qwen2.5vl:3b",
-                  "llava", "mistral", "codellama", "deepseek-r1"):
-            self._pull_combo.addItem(m)
-        pull_row.addWidget(self._pull_combo, 1)
-
-        self._pull_btn = GradientButton("Pull")
-        self._pull_btn.setFixedWidth(100)
-        self._pull_btn.setFixedHeight(36)
-        self._pull_btn.clicked.connect(self._pull_model)
-        pull_row.addWidget(self._pull_btn)
-        pull_card.add_layout(pull_row)
-
-        self._progress_bar = QProgressBar()
-        self._progress_bar.setRange(0, 100)
-        self._progress_bar.setValue(0)
-        self._progress_bar.setVisible(False)
-        self._progress_bar.setStyleSheet(f"""
-            QProgressBar {{
-                background: {dt.BG_ELEVATED.name()};
-                border: none; border-radius: 4px; height: 8px;
-                text-align: center; font-size: 9px; color: transparent;
-            }}
-            QProgressBar::chunk {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 {dt.BRAND_INDIGO.name()}, stop:1 {dt.BRAND_VIOLET.name()});
-                border-radius: 4px;
-            }}
-        """)
-        pull_card.add_widget(self._progress_bar)
-
+        # ── Downloads ───────────────────────────────────────────────────────
+        self.body_layout.addWidget(self.section_label("Download a model"))
+        self._list = Card(padding=8)
+        self._list._layout.setSpacing(0)
+        self.body_layout.addWidget(self._list)
+        self._progress = QProgressBar()
+        self._progress.setRange(0, 100)
+        self._progress.setTextVisible(False)
+        self._progress.setFixedHeight(6)
+        self._progress.setVisible(False)
+        self._progress.setStyleSheet(f"""
+            QProgressBar {{ background: {dt.BG_INPUT.name()}; border: none; border-radius: 3px; }}
+            QProgressBar::chunk {{ border-radius: 3px; background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                stop:0 {dt.BRAND_INDIGO.name()}, stop:1 {dt.BRAND_VIOLET.name()}); }}""")
+        self.body_layout.addWidget(self._progress)
         self._pull_status = QLabel("")
-        self._pull_status.setFont(dt.FONT_CAPTION)
-        self._pull_status.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
-        pull_card.add_widget(self._pull_status)
-        self.body_layout.addWidget(pull_card)
-        self.body_layout.addStretch()
+        self._pull_status.setFont(dt.font(13))
+        self.body_layout.addWidget(self._pull_status)
 
+        custom = Card(padding=20)
+        t = QLabel("Any other model")
+        t.setFont(dt.font(14, dt.QFont.Weight.Medium))
+        custom.add_widget(t)
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        self._custom = QLineEdit()
+        self._custom.setPlaceholderText("model name from ollama.com/library, e.g. mistral")
+        row.addWidget(self._custom, 1)
+        go = FlatButton("Download")
+        go.clicked.connect(lambda: self._pull(self._custom.text().strip()))
+        row.addWidget(go)
+        custom.add_layout(row)
+        self.body_layout.addWidget(custom)
+        self.body_layout.addStretch()
+        self._render_list()
+
+    # ── status ──────────────────────────────────────────────────────────────
     def on_activate(self):
         w = _StatusWorker()
         w.result.connect(self._apply_status)
         self._workers.append(w)
         threading.Thread(target=w.run, daemon=True).start()
 
+    def _render_status(self, state: str, host: str):
+        self._status.clear_layout()
+        while self._status_banner.count():
+            it = self._status_banner.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        meta = {
+            "checking": ("Checking Ollama…", "default", "Looking for Ollama on this computer."),
+            "running": ("Ollama is running", "success", f"Ready to use local models at {host}."),
+            "stopped": ("Ollama is installed but not running", "warning",
+                        "Start it to use local models."),
+            "missing": ("Ollama isn't installed", "warning",
+                        "Ollama is the free app that runs AI models on your computer."),
+        }
+        title, variant, desc = meta[state]
+        row = QHBoxLayout()
+        row.setSpacing(14)
+        row.addWidget(IconTile("cpu", 44), 0, Qt.AlignmentFlag.AlignTop)
+        col = QVBoxLayout()
+        col.setSpacing(3)
+        tr = QHBoxLayout()
+        t = QLabel(title)
+        t.setFont(dt.font(16, dt.QFont.Weight.DemiBold))
+        tr.addWidget(t)
+        tr.addWidget(PillBadge({"running": "Running", "stopped": "Stopped", "missing": "Not installed",
+                                "checking": "Checking"}[state], variant))
+        tr.addStretch()
+        col.addLayout(tr)
+        col.addWidget(self.hint_label(desc))
+        row.addLayout(col, 1)
+        if state == "missing":
+            b = GradientButton("Get Ollama", icon="external")
+            b.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://ollama.com/download")))
+            row.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
+        elif state == "stopped":
+            b = GradientButton("Start Ollama", icon="play")
+            b.clicked.connect(self._start_ollama)
+            row.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._status.add_layout(row)
+
+    def _start_ollama(self):
+        try:
+            subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+        except Exception:
+            pass
+        threading.Timer(2.5, self.on_activate).start()
+
     def _apply_status(self, data: dict):
-        running = data.get("running", False)
-        installed = data.get("installed", False)
-        models = data.get("models", [])
-
-        if running:
-            self._status_dot.set_color(dt.SUCCESS)
-            self._status_label.setText("Running")
-        elif installed:
-            self._status_dot.set_color(dt.WARNING)
-            self._status_label.setText("Installed but not running")
-        else:
-            self._status_dot.set_color(dt.ERROR)
-            self._status_label.setText("Not installed")
-        self._host_label.setText(data.get("host", ""))
-
-        # Clear models list
-        while self._models_container.count():
-            item = self._models_container.takeAt(0)
-            w = item.widget()
-            if w:
-                w.deleteLater()
-
-        if models:
-            for m in models:
-                name = m if isinstance(m, str) else str(m)
-                lbl = QLabel(f"  •  {name}")
-                lbl.setFont(dt.FONT_BODY)
-                lbl.setStyleSheet(f"color: {dt.TEXT_PRIMARY.name()};")
-                self._models_container.addWidget(lbl)
-        else:
-            lbl = QLabel(
-                "No models installed." if running else "Start Ollama to see models."
-            )
-            lbl.setFont(dt.FONT_CAPTION)
-            lbl.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
-            self._models_container.addWidget(lbl)
-
-        # Update combos
+        running, installed = data.get("running", False), data.get("installed", False)
+        self._render_status("running" if running else "stopped" if installed else "missing",
+                            data.get("host", ""))
+        self._installed = data.get("models", [])
         for kind in ("vision", "text"):
-            combo = getattr(self, f"_{kind}_combo", None)
-            if not combo:
-                continue
+            combo = getattr(self, f"_{kind}_combo")
             combo.blockSignals(True)
             combo.clear()
-            for m in models:
-                name = m if isinstance(m, str) else str(m)
-                combo.addItem(name)
-            current = data.get(f"{kind}_model", "")
-            idx = combo.findText(current)
+            combo.addItems(self._installed or ["No models downloaded yet"])
+            combo.setEnabled(bool(self._installed))
+            idx = combo.findText(data.get(f"{kind}_model", ""))
             if idx >= 0:
                 combo.setCurrentIndex(idx)
             combo.blockSignals(False)
+        self._render_list()
 
     def _set_model(self, kind: str, name: str):
-        if self._cfg and name:
+        if self._cfg and name and name in self._installed:
             self._cfg.set_ollama_model(kind, name)
 
-    def _pull_model(self):
-        name = self._pull_combo.currentText().strip()
-        if not name:
-            return
-        self._progress_bar.setVisible(True)
-        self._progress_bar.setValue(0)
-        self._pull_btn.setEnabled(False)
-        self._pull_status.setText(f"Pulling {name}…")
-        self._pull_status.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
+    # ── downloads ───────────────────────────────────────────────────────────
+    def _have(self, name: str) -> bool:
+        base = name.split(":")[0]
+        return any(m == name or m.split(":")[0] == base and ":" not in name for m in self._installed)
 
+    def _render_list(self):
+        self._list.clear_layout()
+        for i, (mid, label, desc, size, vision) in enumerate(RECOMMENDED):
+            if i:
+                self._list.add_widget(Divider())
+            row = QWidget()
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(12, 12, 12, 12)
+            rl.setSpacing(12)
+            col = QVBoxLayout()
+            col.setSpacing(2)
+            tr = QHBoxLayout()
+            n = QLabel(label)
+            n.setFont(dt.font(14, dt.QFont.Weight.Medium))
+            tr.addWidget(n)
+            tr.addWidget(PillBadge("Vision" if vision else "Text", "info" if vision else "default"))
+            tr.addStretch()
+            col.addLayout(tr)
+            col.addWidget(self.hint_label(f"{desc}  ·  {size}"))
+            rl.addLayout(col, 1)
+            if self._have(mid):
+                rl.addWidget(PillBadge("Downloaded", "success"))
+            elif mid in self._pulling:
+                rl.addWidget(PillBadge("Downloading…", "accent"))
+            else:
+                b = FlatButton("Download", icon="download")
+                b.clicked.connect(lambda _c=False, m=mid: self._pull(m))
+                rl.addWidget(b)
+            self._list.add_widget(row)
+
+    def _pull(self, name: str):
+        if not name or name in self._pulling:
+            return
+        self._pulling.add(name)
+        self._progress.setValue(0)
+        self._progress.setVisible(True)
+        self._pull_status.setText(f"Downloading {name}…")
+        self._pull_status.setStyleSheet(f"color: {dt.TEXT_MUTED.name()};")
+        self._render_list()
         w = _PullWorker(name)
-        w.progress.connect(self._on_pull_progress)
-        w.finished.connect(self._on_pull_finished)
+        w.progress.connect(lambda _n, pct: self._progress.setValue(int(pct)))
+        w.finished.connect(self._on_pulled)
         self._workers.append(w)
         threading.Thread(target=w.run, daemon=True).start()
 
-    def _on_pull_progress(self, name: str, pct: float):
-        self._progress_bar.setValue(int(pct))
-
-    def _on_pull_finished(self, name: str, ok: bool, error: str):
-        self._pull_btn.setEnabled(True)
-        self._progress_bar.setVisible(False)
-        if ok:
-            self._pull_status.setText(f"Successfully pulled {name}")
-            self._pull_status.setStyleSheet(f"color: {dt.SUCCESS.name()};")
-            self.on_activate()
-        else:
-            self._pull_status.setText(f"Failed: {error}")
-            self._pull_status.setStyleSheet(f"color: {dt.ERROR.name()};")
+    def _on_pulled(self, name: str, ok: bool, error: str):
+        self._pulling.discard(name)
+        self._progress.setVisible(False)
+        self._pull_status.setText(f"{name} is ready." if ok else f"Couldn't download {name}: {error}")
+        self._pull_status.setStyleSheet(f"color: {(dt.SUCCESS if ok else dt.ERROR).name()};")
+        self.on_activate()

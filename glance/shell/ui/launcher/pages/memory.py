@@ -18,7 +18,7 @@ from .. import design_tokens as dt
 
 class MemoryPage(BasePage):
     title = "Memory"
-    icon = "💭"
+    icon = "layers"
     subtitle = "Manage facts and skills Glance has learned."
 
     def __init__(self, parent=None):

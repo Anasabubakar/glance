@@ -65,7 +65,7 @@ from pathlib import Path
 
 class DiagnosticsPage(BasePage):
     title = "Diagnostics"
-    icon = "🔍"
+    icon = "gauge"
     subtitle = "System information and provider health checks."
 
     def __init__(self, parent=None):
