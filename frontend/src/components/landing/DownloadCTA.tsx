@@ -21,9 +21,23 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "v0.3.6",
+    tag: "v0.3.6",
+    label: "Latest",
+    files: {
+      Windows: [
+        { label: "Installer", ext: ".exe", size: "~150 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.6/Setup-Glance.exe" },
+      ],
+      Linux: [
+        { label: "Package (Debian/Ubuntu)", ext: ".deb", size: "~220 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.6/glance_0.3.6_amd64.deb" },
+        { label: "AppImage (any distro)", ext: ".AppImage", size: "~295 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.6/Glance-0.3.6-x86_64.AppImage" },
+      ],
+    },
+  },
+  {
     version: "v0.3.5",
     tag: "v0.3.5",
-    label: "Latest",
+    label: "Previous",
     files: {
       Windows: [
         { label: "Installer", ext: ".exe", size: "~150 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.5/Setup-Glance.exe" },
@@ -37,7 +51,7 @@ const RELEASES: Release[] = [
   {
     version: "v0.3.4",
     tag: "v0.3.4",
-    label: "Previous",
+    label: "Older",
     files: {
       Windows: [
         { label: "Installer", ext: ".exe", size: "~150 MB", href: "https://github.com/Anasabubakar/glance/releases/download/v0.3.4/Setup-Glance.exe" },
