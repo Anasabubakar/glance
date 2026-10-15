@@ -5,7 +5,7 @@ import anthropic
 from ai.base_provider import BaseLLMProvider, Message
 from config import cfg
 
-DEFAULT_MODEL = "claude-sonnet-5"
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 1024
 
 

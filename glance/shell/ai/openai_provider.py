@@ -5,7 +5,7 @@ from openai import AsyncOpenAI
 from ai.base_provider import BaseLLMProvider, Message
 from config import cfg
 
-DEFAULT_MODEL = "gpt-4o"
+DEFAULT_MODEL = "gpt-4o-mini"
 MAX_TOKENS = 1024
 
 
