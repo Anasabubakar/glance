@@ -228,11 +228,8 @@ class SetupWizard(QDialog):
             _h = "color:#F3F4F8;font-weight:600;font-size:15px"
             self.subtitle.setText(
                 "Choose how Glance thinks. You can change this any time under AI &amp; Keys."
-                f"<br><br><span style='{_h}'>Start free</span><br>"
-                "Chat, ask questions and open apps right now. No account and no key. "
-                "It can't see your screen."
                 f"<br><br><span style='{_h}'>Use my own key</span><br>"
-                "Gemini (which has a free tier), Claude or OpenAI. Glance can see your screen, point and click."
+                "Gemini (which has a free tier), Claude, OpenAI, or any OpenAI-compatible endpoint. Glance sees your screen, points and clicks. Fast models are picked for you."
                 f"<br><br><span style='{_h}'>On this computer</span><br>"
                 "Private and offline with Ollama. Needs a model download."
             )
@@ -240,7 +237,6 @@ class SetupWizard(QDialog):
             self.action_btn.setObjectName("secondary")
             self.action_btn.setStyle(self.action_btn.style())
             self.action_btn.setEnabled(True)
-            self.free_btn.show()
             self.skip_btn.setText("On this computer")
             self.skip_btn.setEnabled(True)
             self.skip_btn.show()

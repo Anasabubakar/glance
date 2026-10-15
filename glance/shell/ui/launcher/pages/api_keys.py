@@ -1,7 +1,7 @@
 """
 AI & Keys — one place to choose which AI answers and to add its key.
 
-A card per provider (Glance Cloud, Gemini, Claude, OpenAI, Copilot, Ollama,
+A card per provider (Gemini, Claude, OpenAI, Copilot, Ollama,
 Custom endpoint), each showing whether it is active / ready / needs a key, with
 its key field right inside the card. Voice & search service keys sit below.
 """
@@ -105,8 +105,6 @@ class _OllamaProbe(QObject):
 
 PROVIDERS = [
     # key, name, description, icon, env key (or None), help url
-    ("cloud", "Glance Cloud", "Free and instant. Chats and opens apps, but can't see your screen.",
-     "cloud", None, None),
     ("gemini", "Google Gemini", "Sees your screen and clicks. Has a free tier.",
      "ai", "GOOGLE_API_KEY", "https://aistudio.google.com/apikey"),
     ("claude", "Claude", "Best at screen tasks and computer use.",
@@ -333,7 +331,7 @@ class ProviderCard(Card):
         self.page.cfg.remove_env_values(["GLANCE_CUSTOM_BASE_URL", "GLANCE_CUSTOM_MODEL",
                                          "GLANCE_CUSTOM_API_KEY"])
         if self.page.cfg.llm_provider() == "custom":
-            self.page.cfg.set_active_llm("cloud")
+            self.page.cfg.remove_env_values(["GLANCE_ACTIVE_LLM"])
         self.url.clear()
         self.model.clear()
         self.key.clear_key()
