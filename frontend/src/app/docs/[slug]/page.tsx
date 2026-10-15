@@ -437,6 +437,18 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-6" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.6 — A redesigned app</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Completely redesigned dashboard: 9 pages instead of 17, with a new design system and icons</li>
+        <li>• AI &amp; Keys: providers, keys and the custom endpoint in one place</li>
+        <li>• Floating panel with clear states and a working Hold to talk button</li>
+        <li>• Settings show real defaults, apply immediately and match the tray menu; secrets are always masked</li>
+        <li>• Screen capture, clicks and typing on GNOME/Wayland through the extension (log out and back in once)</li>
+        <li>• Gemini works again: Glance picks a model your key can actually use</li>
+        <li>• The words after &quot;Glance&quot; are used as the command, and listening ends when you stop talking</li>
+      </ul>
+
       <h2 id="v0-3-5" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.5 — Glance Cloud fixes</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
