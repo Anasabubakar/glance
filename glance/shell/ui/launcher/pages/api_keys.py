@@ -53,12 +53,14 @@ class _Validator(QObject):
                 ok = r.status_code == 200
                 msg = "Valid" if ok else f"HTTP {r.status_code}"
             elif self.env_key == "GOOGLE_API_KEY":
-                r = httpx.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={self.value}",
-                    json={"contents": [{"parts": [{"text": "hi"}]}]},
+                # List models: validates the key without depending on any model
+                # name (a retired model made the old generate-based check 404).
+                r = httpx.get(
+                    "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
+                    headers={"x-goog-api-key": self.value},   # header: never in a URL/error
                     timeout=15,
                 )
-                ok = r.status_code in (200, 400, 429)
+                ok = r.status_code in (200, 429)
                 msg = "Valid" if ok else f"HTTP {r.status_code}"
             elif self.env_key == "DEEPGRAM_API_KEY":
                 r = httpx.get("https://api.deepgram.com/v1/projects",
@@ -79,7 +81,7 @@ class _Validator(QObject):
                 ok = r.status_code == 200
                 msg = "Valid" if ok else f"HTTP {r.status_code}"
         except Exception as e:
-            msg = str(e)[:80]
+            msg = type(e).__name__ + (" (check your connection)" if "onnect" in type(e).__name__ else "")
         self.finished.emit(self.env_key, ok, msg)
 
 

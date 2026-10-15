@@ -499,10 +499,9 @@ class SetupWizard(QDialog):
 
             if g_key:
                 try:
-                    r = httpx.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/"
-                        f"gemini-2.0-flash:generateContent?key={g_key}",
-                        json={"contents": [{"parts": [{"text": "hi"}]}]},
+                    r = httpx.get(
+                        "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
+                        headers={"x-goog-api-key": g_key},
                         timeout=15)
                     if r.status_code in (400, 403):
                         errors.append("Gemini rejected its key.")
