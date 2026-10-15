@@ -5,7 +5,7 @@ from audio.playback import play_mp3_async
 from config import cfg
 
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"  # Sarah — natural, clear
+DEFAULT_VOICE_ID = "lUTamkMw7gOzZbFIwmq4"  # Glance default voice
 
 
 class ElevenLabsProvider(BaseTTS):
