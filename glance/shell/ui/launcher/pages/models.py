@@ -64,7 +64,7 @@ class _ProviderModels(Card):
         self._expanded = False
         self._models: list = []
 
-    def render(self, models: list, has_key: bool, active_provider: str, active_model):
+    def render(self, models: list, has_key: bool, active_provider: str, active_model, active_text=None):
         self.clear_layout()
         self._models = [_norm(m) for m in models if not (self.key == "gemini" and _NOT_CHAT.search(str(_norm(m)["id"])))]
         head = QHBoxLayout()
@@ -97,11 +97,13 @@ class _ProviderModels(Card):
         for i, m in enumerate(shown):
             if i:
                 self._layout.addWidget(Divider())
-            is_default = (self.key == active_provider and m["id"] == active_model)
+            on_provider = self.key == active_provider
+            is_vision = on_provider and m["id"] == active_model
+            is_text = on_provider and m["id"] == active_text
             row = QWidget()
             rl = QHBoxLayout(row)
             rl.setContentsMargins(0, 11, 0, 11)
-            rl.setSpacing(12)
+            rl.setSpacing(8)
             col = QVBoxLayout()
             col.setSpacing(1)
             name = QLabel(m["label"])
@@ -112,14 +114,21 @@ class _ProviderModels(Card):
             mid.setStyleSheet(f"color: {dt.TEXT_DIM.name()};")
             col.addWidget(mid)
             rl.addLayout(col, 1)
-            rl.addWidget(PillBadge("Vision" if m["vision"] else "Text only", "info" if m["vision"] else "default"))
-            if is_default:
-                rl.addWidget(PillBadge("Default", "accent"))
+            if not m["vision"]:
+                rl.addWidget(PillBadge("Text only", "default"))
+            if is_text:
+                rl.addWidget(PillBadge("Text", "accent"))
             else:
-                b = FlatButton("Use")
-                b.setFixedWidth(72)
-                b.clicked.connect(lambda _c=False, mid=m["id"]: self.page.use(self.key, mid))
-                rl.addWidget(b)
+                bt = GhostButton("Use for text")
+                bt.clicked.connect(lambda _c=False, mid=m["id"]: self.page.use(self.key, mid, "text"))
+                rl.addWidget(bt)
+            if m["vision"]:
+                if is_vision:
+                    rl.addWidget(PillBadge("Vision", "accent"))
+                else:
+                    bv = FlatButton("Use for vision")
+                    bv.clicked.connect(lambda _c=False, mid=m["id"]: self.page.use(self.key, mid, "vision"))
+                    rl.addWidget(bv)
             self._layout.addWidget(row)
         if len(self._models) > _SHOW:
             more = GhostButton("Show fewer" if self._expanded else f"Show all {len(self._models)}")
@@ -134,7 +143,7 @@ class _ProviderModels(Card):
 class ModelsPage(BasePage):
     title = "Models"
     icon = "ai"
-    subtitle = "Choose the model Glance uses, or leave it on Automatic."
+    subtitle = "Pick one model for chat (text) and another for seeing your screen (vision)."
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -184,6 +193,7 @@ class ModelsPage(BasePage):
         c = self._cfg
         active_provider = c.llm_provider() if c else ""
         active_model = c.active_model() if c else None
+        active_text = c.text_model_pick() if c else None
         # automatic card
         self._auto.clear_layout()
         row = QHBoxLayout()
@@ -192,27 +202,32 @@ class ModelsPage(BasePage):
         t = QLabel("Automatic")
         t.setFont(dt.font(15, dt.QFont.Weight.DemiBold))
         col.addWidget(t)
-        col.addWidget(self.hint_label("Glance picks a good, available model for you and switches if one is "
+        col.addWidget(self.hint_label("Glance picks a fast, available model for chat and for vision, and switches if one is "
                                       "busy or retired. Recommended."))
         row.addLayout(col, 1)
-        if active_model is None:
+        if active_model is None and active_text is None:
             row.addWidget(PillBadge("In use", "accent"))
         else:
-            b = FlatButton("Use Automatic")
+            b = FlatButton("Reset both to Automatic")
             b.clicked.connect(self.use_auto)
             row.addWidget(b)
         self._auto.add_layout(row)
         for key, _name, attr in MODEL_PROVIDERS:
             has = bool(getattr(c, attr, None)) if c else False
-            self._cards[key].render(self._data.get(key, []), has, active_provider, active_model)
+            self._cards[key].render(self._data.get(key, []), has, active_provider, active_model, active_text)
 
-    def use(self, provider: str, model_id: str):
-        if self._cfg:
-            self._cfg.set_active_llm(provider)      # also clears any stale model override
-            self._cfg.set_active_model(model_id)
+    def use(self, provider: str, model_id: str, kind: str = "vision"):
+        c = self._cfg
+        if c:
+            if c.llm_provider() != provider:
+                c.set_active_llm(provider)          # also clears stale model picks
+            if kind == "text":
+                c.set_text_model(model_id)
+            else:
+                c.set_active_model(model_id)
         self.render_all()
 
     def use_auto(self):
         if self._cfg:
-            self._cfg.set_active_model("")
+            self._cfg.remove_env_values(["GLANCE_ACTIVE_MODEL", "GLANCE_TEXT_MODEL"])
         self.render_all()
