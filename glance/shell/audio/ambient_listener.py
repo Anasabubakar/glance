@@ -68,6 +68,37 @@ def _skeleton(word: str) -> str:
     return "".join(out)
 
 
+_SINGLE_WAKE = {"glance", "clackie", "clacki", "clackey", "clacke", "klacky", "klacki",
+                "cracky", "clarky"}
+
+
+def _word_is_wake(w: str) -> bool:
+    from difflib import SequenceMatcher
+    if w in _SINGLE_WAKE:
+        return True
+    if not (3 <= len(w) <= 8):
+        return False
+    if SequenceMatcher(None, w, "glance").ratio() >= 0.72:
+        return True
+    return bool(w[0] in "gck" and w[1:2] in ("l", "") and
+                SequenceMatcher(None, _skeleton(w), _skeleton("glance")).ratio() >= 0.74)
+
+
+def wake_tail(text: str) -> str:
+    """The words spoken AFTER the wake word in the same utterance
+    ('Hey Glance, open the projects folder' -> 'open the projects folder').
+    Returns '' when there is nothing after it (or the wake word isn't found)."""
+    import re
+    prev = ""
+    for m in re.finditer(r"[A-Za-z']+", text):
+        w = m.group(0).lower()
+        if _word_is_wake(w) or (prev and _word_is_wake(prev + w)):
+            tail = text[m.end():]
+            return re.sub(r"^[\s,.:;!?\-]+", "", tail).strip()
+        prev = w
+    return ""
+
+
 def wake_match(text: str) -> bool:
     """True if `text` (a whisper transcript) contains the wake word. Whisper-tiny
     mangles 'Glance' a dozen ways, so besides the explicit phrases we accept
@@ -123,6 +154,8 @@ class AmbientListener:
         # Adaptive noise floor so steady room noise isn't mistaken for speech
         # (which made the wake check run every 3 s and burn CPU).
         self._noise_floor = 0.004
+        self._rec_speech_seen = False
+        self._last_speech_t = 0.0
 
         # Recording buffer (hotkey push-to-talk OR post-wake capture)
         self._rec_buffer: list[bytes] = []
@@ -168,6 +201,8 @@ class AmbientListener:
     def start_recording(self) -> None:
         """Switch to RECORDING mode; all audio buffered for STT."""
         self._rec_buffer = []
+        self._rec_speech_seen = False
+        self._last_speech_t = 0.0
         self._mode = Mode.RECORDING
 
     def stop_recording(self) -> bytes:
@@ -177,6 +212,11 @@ class AmbientListener:
         self._mode = Mode.STANDBY
         self._reset_segment()
         return pcm
+
+    def recording_state(self) -> tuple:
+        """(speech_seen_since_recording_began, seconds_since_last_speech)."""
+        since = (time.monotonic() - self._last_speech_t) if self._rec_speech_seen else 0.0
+        return self._rec_speech_seen, since
 
     def set_rec_chunk_callback(self, cb) -> None:
         """Set (or clear with None) a sink called with each PCM chunk while
@@ -201,7 +241,17 @@ class AmbientListener:
         rms = float(np.sqrt(np.mean(pcm_float ** 2)))
         self._on_level(rms)
 
+        # Track speech vs. noise-floor for BOTH modes (end-of-speech detection).
+        if rms < self._noise_floor * 1.5:
+            self._noise_floor = 0.98 * self._noise_floor + 0.02 * rms
+        else:
+            self._noise_floor *= 1.0004        # allow slow upward drift (new noise)
+        is_speech = rms > max(ENERGY_THRESHOLD, self._noise_floor * 2.2)
+
         if self._mode == Mode.RECORDING:
+            if is_speech:
+                self._rec_speech_seen = True
+                self._last_speech_t = time.monotonic()
             raw = pcm_int16.tobytes()
             self._rec_buffer.append(raw)
             cb = self._on_rec_chunk
@@ -221,11 +271,6 @@ class AmbientListener:
         if len(self._preroll) > PRE_ROLL_BLOCKS:
             self._preroll.pop(0)
 
-        if rms < self._noise_floor * 1.5:
-            self._noise_floor = 0.98 * self._noise_floor + 0.02 * rms
-        else:
-            self._noise_floor *= 1.0004        # allow slow upward drift (new noise)
-        is_speech = rms > max(ENERGY_THRESHOLD, self._noise_floor * 2.2)
 
         if not self._in_segment:
             if is_speech:
@@ -274,13 +319,18 @@ class AmbientListener:
 
     def _check_wake(self, pcm: bytes):
         try:
-            text = self._transcribe_tiny(pcm).lower().strip()
+            text_orig = self._transcribe_tiny(pcm).strip()
+            text = text_orig.lower()
             if not text:
                 return
             hit = wake_match(text)
             _log("WAKE", f"heard {text!r} -> {'MATCH' if hit else 'no match'}")
             if hit:
-                self._on_wake()
+                tail = wake_tail(text_orig)
+                try:
+                    self._on_wake(tail)
+                except TypeError:
+                    self._on_wake()
         except Exception as e:
             _log("WAKE", f"wake check failed: {type(e).__name__}: {e}")
         finally:
@@ -317,10 +367,33 @@ class AmbientListener:
             os.unlink(path)
 
     def _get_model(self):
+        """Wake-word model: base.en (much better at "Glance" than tiny.en). If it
+        isn't downloaded yet, start with tiny.en and fetch base.en in the background."""
         with self._wake_lock:
             if self._wake_model is None:
                 from faster_whisper import WhisperModel
-                self._wake_model = WhisperModel(
-                    "tiny.en", device="cpu", compute_type="int8"
-                )
+
+                def load(name, local_only):
+                    return WhisperModel(name, device="cpu", compute_type="int8",
+                                        local_files_only=local_only)
+                for name in ("base.en", "tiny.en"):
+                    try:
+                        self._wake_model = load(name, True)       # cached copy only
+                        break
+                    except Exception:
+                        continue
+                if self._wake_model is None:
+                    self._wake_model = load("tiny.en", False)     # first run: downloads
+                if getattr(self._wake_model, "_glance_name", None) is None:
+                    self._wake_model._glance_name = "tiny.en" if name == "tiny.en" else name
+                if name != "base.en":
+                    def upgrade():
+                        try:
+                            m = load("base.en", False)            # downloads in background
+                            with self._wake_lock:
+                                self._wake_model = m
+                            _log("WAKE", "upgraded wake-word model to base.en")
+                        except Exception as e:
+                            _log("WAKE", f"base.en download failed ({e}); staying on tiny.en")
+                    threading.Thread(target=upgrade, daemon=True).start()
             return self._wake_model

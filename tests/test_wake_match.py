@@ -29,3 +29,18 @@ def test_matches_wake_word_and_mishearings(text):
 ])
 def test_ignores_unrelated_speech(text):
     assert not wake_match(text)
+
+
+from audio.ambient_listener import wake_tail  # noqa: E402
+
+
+@pytest.mark.parametrize("text,tail", [
+    ("Hey Glance, open the projects folder.", "open the projects folder."),
+    ("Glance. Open projects folder", "Open projects folder"),
+    ("hey, hey glance, what is on my screen?", "what is on my screen?"),
+    ("we first stand for the video, k-lax, what?", "what?"),
+    ("Glance", ""),
+    ("what is the weather today", ""),
+])
+def test_wake_tail_is_the_command_after_the_wake_word(text, tail):
+    assert wake_tail(text) == tail

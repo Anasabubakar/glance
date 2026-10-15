@@ -593,8 +593,9 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
         if self._state == AppState.LISTENING:
             self._submit(self._end_capture_and_process())
 
-    def _handle_wake(self):
-        """Triggered from ambient listener when wake-word is detected."""
+    def _handle_wake(self, tail: str = ""):
+        """Triggered from ambient listener when wake-word is detected. `tail` is
+        whatever was said after "Glance" in the same breath — that is the command."""
         # Hard kill-switch: GLANCE_WAKE_WORD=0 means the wake word can NEVER fire,
         # regardless of any toggle state (demo recording says "Glance" in narration).
         if os.environ.get("GLANCE_WAKE_WORD", "1") == "0":
@@ -602,9 +603,14 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
             return
         if self._state != AppState.IDLE:
             return
-        slog("HEAR", "wake word triggered")
+        slog("HEAR", "wake word triggered" + (f" + command {tail!r}" if tail else ""))
         self._begin_capture()
-        self._submit(self._auto_stop_after_pause())
+        if len(tail.split()) >= 2:
+            # "Glance, open the projects folder": we already have the command text,
+            # so don't wait for (or lose) a second utterance.
+            self._submit(self._end_capture_and_process(preset=tail))
+        else:
+            self._submit(self._auto_stop_after_pause())
 
     def _handle_level(self, rms: float):
         try:
@@ -705,15 +711,21 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
     async def _auto_stop_after_pause(self):
         """When triggered by wake word, wait for user to finish speaking."""
         import time
-        max_total_s = 10.0
+        max_total_s = 14.0
         start_t = time.monotonic()
         while self._state == AppState.LISTENING:
-            await asyncio.sleep(0.15)
-            if time.monotonic() - start_t > max_total_s:
+            await asyncio.sleep(0.1)
+            elapsed = time.monotonic() - start_t
+            seen, quiet_for = self._listener.recording_state()
+            if seen and quiet_for > 0.9 and elapsed > 0.8:
+                break                              # they finished speaking
+            if not seen and elapsed > 6.0:
+                break                              # never started speaking
+            if elapsed > max_total_s:
                 break
         await self._end_capture_and_process()
 
-    async def _end_capture_and_process(self):
+    async def _end_capture_and_process(self, preset: str = ""):
         gen = getattr(self, "_gen", 0)   # this turn's id; a barge-in bumps it
         _log_turn()                      # reset the +N.NNs clock → true per-turn latency
         pcm = self._listener.stop_recording()
@@ -740,7 +752,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
                   "input device is probably wrong (Camo/Phone Link virtual mic?). "
                   "Settings > Sound > Input, pick your real mic, restart Glance.",
                   flush=True)
-        if len(pcm) < 3200:  # < 0.1s of audio — ignore
+        if len(pcm) < 3200 and not preset:  # < 0.1s of audio — ignore
             if session is not None:
                 try:
                     await session.finish()   # close the socket cleanly
@@ -762,8 +774,8 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
         try:
             # 1. Transcribe — prefer the live-streamed transcript (ready ~instantly,
             # since audio streamed during speech); fall back to batch on any miss.
-            transcript = ""
-            if session is not None:
+            transcript = preset
+            if session is not None and not preset:
                 try:
                     transcript = await session.finish()
                 except Exception:
