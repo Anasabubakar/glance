@@ -90,15 +90,49 @@ def _record_latency(name: str, vision: bool, secs: float) -> None:
     _save_health()
 
 
-def _cooldown(name: str, status: int, retry_after: str | None) -> None:
+def _kid(key: str) -> str:
+    """Short, non-reversible id for a key (so health files never hold keys)."""
+    import hashlib
+    return hashlib.sha1((key or "").encode()).hexdigest()[:6]
+
+
+_rr = {"n": 0}
+
+
+def _pairs(names: list, keys: list) -> list:
+    """Expand ordered models into (model, key) attempts. Rate limits (429) are per key
+    AND per model, so each model is tried with every key that isn't cooling down, and
+    the starting key rotates so the load is spread over all of the user's keys."""
+    now, wall = time.monotonic(), time.time()
+    _rr["n"] += 1
+    out = []
+    for name in names:
+        ks = [k for k in keys if _cool.get(f"{name}|{_kid(k)}", 0) <= now
+              and _bad_until.get(f"{name}|{_kid(k)}", 0) <= wall
+              and _bad_until.get(f"key|{_kid(k)}", 0) <= wall]
+        if ks:
+            start = _rr["n"] % len(ks)
+            ks = ks[start:] + ks[:start]
+        out.extend((name, k) for k in ks)
+    return out or [(n, keys[0]) for n in names[:1]]
+
+
+def _cooldown(name: str, status: int, retry_after: str | None, key: str | None = None) -> None:
     secs = 120.0 if status in (429, 500, 502, 503, 504) else 30.0
     try:
         if retry_after:
             secs = min(max(float(retry_after), 20.0), 600.0)
     except ValueError:
         pass
+    if key and status == 429:                  # quota: only this key+model is out
+        name = f"{name}|{_kid(key)}"
     _bad_until[name] = time.time() + secs
     _cool[name] = time.monotonic() + secs
+    _save_health()
+
+
+def _key_rejected(key: str) -> None:
+    _bad_until[f"key|{_kid(key)}"] = time.time() + 1800
     _save_health()
 
 
@@ -108,7 +142,7 @@ _load_health()
 def _order(cands: list, vision: bool) -> list:
     now = time.monotonic()
     wall = time.time()
-    ready = [c for c in cands if _cool.get(c, 0) <= now and _bad_until.get(c, 0) <= wall]
+    ready = [c for c in cands if _cool.get(c, 0) <= now and _bad_until.get(c, 0) <= wall]  # model-level
     if not ready:
         return sorted(cands, key=lambda c: _bad_until.get(c, 0))
     tag = "v" if vision else "t"
@@ -146,7 +180,8 @@ async def _candidates(client: httpx.AsyncClient, key: str, requested: str | None
 class GeminiProvider(BaseLLMProvider):
 
     def __init__(self):
-        self._api_key = cfg.google_api_key
+        self._keys = cfg.gemini_keys() or [""]
+        self._api_key = self._keys[0]
 
     async def stream_response(
         self,
@@ -186,9 +221,10 @@ class GeminiProvider(BaseLLMProvider):
             # at once; a brief backoff and a second pass rides them out.
             for attempt in range(3):
                 retriable = False
-                queue = _order(await _candidates(client, self._api_key, model), bool(screenshots_b64))
+                queue = _pairs(_order(await _candidates(client, self._api_key, model),
+                                      bool(screenshots_b64)), self._keys)
                 while queue:
-                    name = queue.pop(0)
+                    name, key = queue.pop(0)
                     url = f"{BASE}/models/{name}:streamGenerateContent?alt=sse"
                     _t0 = time.monotonic()
                     send = body
@@ -196,7 +232,7 @@ class GeminiProvider(BaseLLMProvider):
                         send = {**body, "generationConfig": {k: v for k, v in
                                 body["generationConfig"].items() if k != "thinkingConfig"}}
                     try:
-                        cm = client.stream("POST", url, json=send, headers=_hdr(self._api_key))
+                        cm = client.stream("POST", url, json=send, headers=_hdr(key))
                         resp = await cm.__aenter__()
                     except httpx.HTTPError as e:
                         last_err = f"{name}: network error {type(e).__name__}"
@@ -209,16 +245,19 @@ class GeminiProvider(BaseLLMProvider):
                                   f"after {time.monotonic() - _t0:.1f}s", flush=True)
                         if resp.status_code != 200:
                             text = (await resp.aread()).decode("utf-8", "replace")
-                            last_err = f"{name}: HTTP {resp.status_code} {_err_text(text, self._api_key)}"
+                            last_err = f"{name}: HTTP {resp.status_code} {_err_text(text, key)}"
                             low = text.lower()
-                            if resp.status_code in (401, 403) and "no longer available" not in low:
-                                raise GeminiError(last_err)      # key rejected: don't loop
+                            if (resp.status_code in (401, 403) and "no longer available" not in low) \
+                                    or (resp.status_code == 400 and "api key" in low):
+                                _key_rejected(key)               # this key is bad; others may work
+                                if not any(_bad_until.get(f"key|{_kid(k)}", 0) <= time.time()
+                                           for k in self._keys):
+                                    raise GeminiError(last_err)  # every key rejected: stop
+                                continue
                             if resp.status_code == 400:
-                                if "api key" in low:
-                                    raise GeminiError(last_err)  # bad key: don't loop
                                 if "thinkingConfig" in send["generationConfig"]:
                                     _nothink.add(name); _save_health()   # remember; retry without it
-                                    queue.insert(0, name)
+                                    queue.insert(0, (name, key))
                                 else:
                                     _bad.add(name); _save_health()  # this model rejects us; skip it
                                 continue
@@ -227,8 +266,8 @@ class GeminiProvider(BaseLLMProvider):
                             elif resp.status_code in (429, 500, 502, 503, 504):
                                 if resp.status_code != 429:
                                     retriable = True             # transient; a second pass may work
-                                _cooldown(name, resp.status_code, resp.headers.get("retry-after"))
-                            continue                             # try the next model
+                                _cooldown(name, resp.status_code, resp.headers.get("retry-after"), key)
+                            continue                             # try the next model/key
                         _sticky["vision" if screenshots_b64 else "text"] = name
                         _cool.pop(name, None)
                         _first = True
@@ -308,7 +347,7 @@ class GeminiProvider(BaseLLMProvider):
         deadline = loop.time() + budget
         errors: list = []
 
-        async def one(client: httpx.AsyncClient, name: str) -> str:
+        async def one(client: httpx.AsyncClient, name: str, key: str) -> str:
             send = body
             if name in _nothink:
                 send = {**body, "generationConfig": {k: v for k, v in
@@ -316,7 +355,7 @@ class GeminiProvider(BaseLLMProvider):
             t0 = time.monotonic()
             for _try in range(2):
                 r = await client.post(f"{BASE}/models/{name}:generateContent", json=send,
-                                      headers=_hdr(self._api_key))
+                                      headers=_hdr(key))
                 if r.status_code == 400 and "thinkingConfig" in send["generationConfig"] \
                         and "api key" not in r.text.lower():
                     _nothink.add(name); _save_health()           # drop it for this model
@@ -326,12 +365,14 @@ class GeminiProvider(BaseLLMProvider):
                 break
             if r.status_code != 200:
                 low = r.text.lower()
-                if r.status_code in (401, 403) and "no longer available" not in low:
-                    raise GeminiError(f"{name}: HTTP {r.status_code} {_err_text(r.text, self._api_key)}")
+                if (r.status_code in (401, 403) and "no longer available" not in low) \
+                        or (r.status_code == 400 and "api key" in low):
+                    _key_rejected(key)
+                    raise RuntimeError(f"{name}: key rejected (HTTP {r.status_code})")
                 if r.status_code in (400, 403, 404):
                     _bad.add(name); _save_health()
                 else:
-                    _cooldown(name, r.status_code, r.headers.get("retry-after"))
+                    _cooldown(name, r.status_code, r.headers.get("retry-after"), key)
                 raise RuntimeError(f"{name}: HTTP {r.status_code}")
             try:
                 text = "".join(p.get("text", "") for c in r.json().get("candidates", [])
@@ -344,13 +385,21 @@ class GeminiProvider(BaseLLMProvider):
             return text
 
         async with httpx.AsyncClient(timeout=httpx.Timeout(30, connect=6)) as client:
-            queue = _order(await _candidates(client, self._api_key, model), vision)
+            queue = _pairs(_order(await _candidates(client, self._api_key, model), vision),
+                           self._keys)
+            # Race DIFFERENT models first (that is what evens out slow ones); the other
+            # keys for each model come after as replacements.
+            firsts, seen_models = [], set()
+            for nm, ky in queue:
+                if nm not in seen_models:
+                    seen_models.add(nm); firsts.append((nm, ky))
+            queue = firsts + [q for q in queue if q not in firsts]
             running: dict = {}
             try:
                 while True:
                     while queue and len(running) < race:
-                        name = queue.pop(0)
-                        running[asyncio.ensure_future(one(client, name))] = name
+                        name, key = queue.pop(0)
+                        running[asyncio.ensure_future(one(client, name, key))] = name
                     if not running:
                         break
                     left = deadline - loop.time()
