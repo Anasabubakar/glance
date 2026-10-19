@@ -75,33 +75,65 @@ class Config:
     # App
     hotkey: str = field(default_factory=lambda: os.getenv("GLANCE_HOTKEY", "ctrl+alt+m"))
 
-    def llm_provider(self) -> str:
-        """Returns the active LLM provider (runtime override > priority chain).
+    # Providers that authenticate with an API key (each can hold several keys).
+    KEYED = ("claude", "openai", "gemini", "groq", "openrouter")
+    _KEY_ENV = {"claude": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY",
+                "gemini": "GOOGLE_API_KEY", "groq": "GROQ_API_KEY",
+                "openrouter": "OPENROUTER_API_KEY"}
+    _DEFAULT_ORDER = ("claude", "openai", "copilot", "gemini", "groq", "openrouter", "custom")
 
-        Priority chain: Claude > OpenAI > GitHub Copilot > Gemini > Ollama.
-        """
+    def keys_for(self, provider: str) -> list:
+        """Every key the user added for `provider` (main key first, no duplicates).
+        Extra keys live in <ENV>S, e.g. GOOGLE_API_KEYS, separated by commas."""
+        env = self._KEY_ENV.get(provider)
+        if not env:
+            return []
+        raw = [os.getenv(env) or ""]
+        if provider == "gemini":
+            raw.append(os.getenv("GEMINI_API_KEY") or "")
+        raw += re.split(r"[,\s]+", os.getenv(env + "S", "") or "")
+        seen, out = set(), []
+        for k in raw:
+            k = k.strip()
+            if k and k not in seen:
+                seen.add(k)
+                out.append(k)
+        return out
+
+    def gemini_keys(self) -> list:
+        return self.keys_for("gemini")
+
+    def _ready(self, p: str) -> bool:
+        """Can this provider be used right now (a key, a sign-in, an endpoint)?"""
+        if p in self.KEYED:
+            return bool(self.keys_for(p))
+        return p in self.available_llm_providers()
+
+    def saved_order(self) -> list:
+        raw = os.environ.get("GLANCE_PROVIDER_ORDER", "")
+        out = []
+        for p in (x.strip().lower() for x in raw.split(",")):
+            if p and p not in out:
+                out.append(p)
+        return out
+
+    def provider_order(self) -> list:
+        """The providers Glance will use, best first. The user's own list when they
+        made one; otherwise the old automatic order (a forced provider first)."""
+        avail = set(self.available_llm_providers())
+        saved = [p for p in self.saved_order() if p in avail and (p not in self.KEYED or self._ready(p))]
+        if saved:
+            return saved
         override = os.environ.get("GLANCE_ACTIVE_LLM", "").strip().lower()
-        if override in self.available_llm_providers():
-            return override
-        if self.anthropic_api_key:
-            return "claude"
-        if self.openai_api_key:
-            return "openai"
-        try:
-            from ai.github_copilot_provider import is_authenticated as _gh_ok
-            if _gh_ok():
-                return "copilot"
-        except Exception:
-            pass
-        if self.gemini_keys():
-            return "gemini"
-        if self.groq_api_key:
-            return "groq"
-        if self.openrouter_api_key:
-            return "openrouter"
-        if self.custom_ready():
-            return "custom"
-        # No key anywhere: Glance Cloud (if switched on), else local Ollama.
+        order = [override] if override in avail else []
+        order += [p for p in self._DEFAULT_ORDER if p in avail and p not in order and self._ready(p)]
+        return order
+
+    def llm_provider(self) -> str:
+        """The first provider in the order; local Ollama when nothing else is set up."""
+        order = self.provider_order()
+        if order:
+            return order[0]
         if self.cloud_enabled():
             return "cloud"
         return "ollama"
@@ -112,26 +144,37 @@ class Config:
         kept; set GLANCE_CLOUD=1 to bring it back."""
         return os.getenv("GLANCE_CLOUD", "").strip().lower() in ("1", "true", "yes")
 
-    def gemini_keys(self) -> list:
-        """Every Gemini key the user added (primary first, duplicates removed)."""
-        raw = [self.google_api_key or ""] + re.split(r"[,\s]+", self.google_api_keys_extra or "")
-        seen, out = set(), []
-        for k in raw:
-            k = k.strip()
-            if k and k not in seen:
-                seen.add(k)
-                out.append(k)
-        return out
-
     def fallback_enabled(self) -> bool:
         return os.getenv("GLANCE_FALLBACK", "1").strip().lower() not in ("0", "false", "no")
 
     def fallback_chain(self) -> list:
-        """Providers to try, in order: the active one, then the other configured ones."""
-        active = self.llm_provider()
-        order = ["gemini", "groq", "openrouter", "claude", "openai", "custom"]
-        rest = [p for p in order if p != active and p in self.available_llm_providers()]
-        return [active] + (rest if self.fallback_enabled() else [])
+        """Providers to try, in priority order (just the first when fallback is off)."""
+        order = self.provider_order() or [self.llm_provider()]
+        return order if self.fallback_enabled() else order[:1]
+
+    def set_order(self, order: list) -> None:
+        order = [p for i, p in enumerate(order) if p and p not in order[:i]]
+        os.environ["GLANCE_PROVIDER_ORDER"] = ",".join(order)
+        self._persist_env("GLANCE_PROVIDER_ORDER", ",".join(order))
+
+    def toggle_provider(self, name: str) -> bool:
+        """Add `name` to the end of the priority list, or take it off. True if now in use."""
+        order = self.provider_order()
+        if name in order:
+            order.remove(name)
+            self.set_order(order)
+            return False
+        self.set_order(order + [name])
+        return True
+
+    def move_provider(self, name: str, delta: int) -> None:
+        order = self.provider_order()
+        if name not in order:
+            return
+        i = order.index(name)
+        j = max(0, min(len(order) - 1, i + delta))
+        order.insert(j, order.pop(i))
+        self.set_order(order)
 
     def custom_ready(self) -> bool:
         return bool(self.custom_base_url and self.custom_model)
@@ -139,22 +182,18 @@ class Config:
     def available_llm_providers(self) -> list[str]:
         """All providers the user can switch to right now."""
         out = []
-        if self.anthropic_api_key:
-            out.append("claude")
-        if self.openai_api_key:
-            out.append("openai")
+        for p in ("claude", "openai"):
+            if self.keys_for(p):
+                out.append(p)
         try:
             from ai.github_copilot_provider import is_authenticated as _gh_ok
             if _gh_ok():
                 out.append("copilot")
         except Exception:
             pass
-        if self.gemini_keys():
-            out.append("gemini")
-        if self.groq_api_key:
-            out.append("groq")
-        if self.openrouter_api_key:
-            out.append("openrouter")
+        for p in ("gemini", "groq", "openrouter"):
+            if self.keys_for(p):
+                out.append(p)
         if self.custom_ready():
             out.append("custom")
         if self.cloud_enabled():
@@ -166,6 +205,8 @@ class Config:
         """Runtime switch — next query uses this provider. Persisted to .env."""
         name = name.lower()
         os.environ["GLANCE_ACTIVE_LLM"] = name
+        rest = [p for p in self.provider_order() if p != name]
+        self.set_order([name] + rest)       # the chosen provider becomes priority 1
         # Clear model override when switching providers — the new provider's
         # default is better than carrying a stale model id across providers.
         os.environ.pop("GLANCE_ACTIVE_MODEL", None)
