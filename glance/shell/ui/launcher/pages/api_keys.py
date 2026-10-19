@@ -53,6 +53,14 @@ class _Validator(QObject):
                 r = httpx.get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
                               headers={"x-goog-api-key": v}, timeout=15)
                 ok = r.status_code in (200, 429)
+            elif k == "GROQ_API_KEY":
+                r = httpx.get("https://api.groq.com/openai/v1/models",
+                              headers={"Authorization": f"Bearer {v}"}, timeout=15)
+                ok = r.status_code == 200
+            elif k == "OPENROUTER_API_KEY":
+                r = httpx.get("https://openrouter.ai/api/v1/auth/key",
+                              headers={"Authorization": f"Bearer {v}"}, timeout=15)
+                ok = r.status_code == 200
             elif k == "DEEPGRAM_API_KEY":
                 r = httpx.get("https://api.deepgram.com/v1/projects",
                               headers={"Authorization": f"Token {v}"}, timeout=15)
@@ -69,6 +77,32 @@ class _Validator(QObject):
         except Exception as e:                      # never echo URLs (they can hold keys)
             msg = "Couldn't reach the service" if "onnect" in type(e).__name__ else type(e).__name__
         self.finished.emit(self.env_key, ok, msg)
+
+
+class _MultiGeminiValidator(QObject):
+    """Tests every Gemini key and reports how many work."""
+    finished = pyqtSignal(str, bool, str)
+
+    def __init__(self, keys: list):
+        super().__init__()
+        self.keys = keys
+
+    def run(self):
+        good = 0
+        try:
+            import httpx
+            for v in self.keys:
+                try:
+                    r = httpx.get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
+                                  headers={"x-goog-api-key": v}, timeout=15)
+                    good += r.status_code in (200, 429)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        n = len(self.keys)
+        self.finished.emit("GOOGLE_API_KEY", good == n and n > 0,
+                           f"All {n} keys work" if good == n else f"{good} of {n} keys work")
 
 
 class _CustomTester(QObject):
@@ -107,6 +141,10 @@ PROVIDERS = [
     # key, name, description, icon, env key (or None), help url
     ("gemini", "Google Gemini", "Sees your screen and clicks. Has a free tier.",
      "ai", "GOOGLE_API_KEY", "https://aistudio.google.com/apikey"),
+    ("groq", "Groq", "Very fast, with a free tier. Llama 4 can see your screen.",
+     "ai", "GROQ_API_KEY", "https://console.groq.com/keys"),
+    ("openrouter", "OpenRouter", "Dozens of free models, some of which can see your screen.",
+     "ai", "OPENROUTER_API_KEY", "https://openrouter.ai/keys"),
     ("claude", "Claude", "Best at screen tasks and computer use.",
      "ai", "ANTHROPIC_API_KEY", "https://console.anthropic.com/settings/keys"),
     ("openai", "OpenAI", "GPT models with vision.",
@@ -128,7 +166,8 @@ SERVICES = [
 ]
 
 _CFG_ATTR = {"GOOGLE_API_KEY": "google_api_key", "ANTHROPIC_API_KEY": "anthropic_api_key",
-             "OPENAI_API_KEY": "openai_api_key"}
+             "OPENAI_API_KEY": "openai_api_key", "GROQ_API_KEY": "groq_api_key",
+             "OPENROUTER_API_KEY": "openrouter_api_key"}
 
 
 def _open(url: str):
@@ -244,8 +283,11 @@ class ProviderCard(Card):
             self._buttons(bl, "Save & use", self._custom_save, self._custom_test, self._custom_remove)
         elif self.env_key:
             cur = getattr(cfg, _CFG_ATTR[self.env_key], "") if cfg else ""
-            self.key = KeyField("API key", self.env_key, cur or "")
+            self.key = KeyField("API key" if self.pkey != "gemini" else "Main API key",
+                                self.env_key, cur or "")
             bl.addWidget(self.key)
+            if self.pkey == "gemini":
+                self._build_extra_keys(bl, cfg)
             self._buttons(bl, "Save", self._save, self._test, self._remove, self.help_url)
         elif self.pkey == "ollama":
             bl.addWidget(_hint("Ollama runs models on your own computer. Manage and download them under "
@@ -256,6 +298,54 @@ class ProviderCard(Card):
             row.addWidget(go)
             row.addStretch()
             bl.addLayout(row)
+
+    # extra Gemini keys -----------------------------------------------------------
+    def _build_extra_keys(self, bl: QVBoxLayout, cfg):
+        bl.addWidget(_hint("Have more keys (for example from other Google accounts)? Add them "
+                           "here. Glance spreads requests across all of them, so one key's free "
+                           "limit doesn't stop you."))
+        self._extra_rows: list = []
+        self._extra_box = QVBoxLayout()
+        self._extra_box.setSpacing(8)
+        bl.addLayout(self._extra_box)
+        import re as _re
+        for k in _re.split(r"[,\s]+", getattr(cfg, "google_api_keys_extra", "") if cfg else ""):
+            if k.strip():
+                self._add_extra_row(k.strip())
+        add = GhostButton("Add another key", icon="plus")
+        add.clicked.connect(lambda: self._add_extra_row(""))
+        row = QHBoxLayout()
+        row.addWidget(add)
+        row.addStretch()
+        bl.addLayout(row)
+
+    def _add_extra_row(self, value: str):
+        w = QWidget()
+        h = QHBoxLayout(w)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(8)
+        f = KeyField("", "GOOGLE_API_KEYS", value, placeholder="Another Gemini key…")
+        h.addWidget(f, 1)
+        rm = GhostButton("", icon="trash")
+        rm.setFixedSize(34, 34)
+        rm.clicked.connect(lambda: self._drop_extra_row(w, f))
+        h.addWidget(rm, 0, Qt.AlignmentFlag.AlignBottom)
+        self._extra_rows.append(f)
+        self._extra_box.addWidget(w)
+
+    def _drop_extra_row(self, w: QWidget, f):
+        if f in self._extra_rows:
+            self._extra_rows.remove(f)
+        w.setParent(None)
+        w.deleteLater()
+
+    def _all_gemini_keys(self) -> list:
+        out, seen = [], set()
+        for k in [self.key.get_key()] + [f.get_key() for f in getattr(self, "_extra_rows", [])]:
+            if k and k not in seen:
+                seen.add(k)
+                out.append(k)
+        return out
 
     def _on_action(self):
         if self._needs_setup:
@@ -271,6 +361,21 @@ class ProviderCard(Card):
 
     # key actions ---------------------------------------------------------------
     def _save(self):
+        if self.pkey == "gemini":
+            keys = self._all_gemini_keys()
+            if not keys:
+                self.status.say("Paste a key first.", dt.WARNING)
+                return
+            self.page.cfg.save_env_values({"GOOGLE_API_KEY": keys[0]})
+            if keys[1:]:
+                self.page.cfg.save_env_values({"GOOGLE_API_KEYS": ",".join(keys[1:])})
+            else:
+                self.page.cfg.remove_env_values(["GOOGLE_API_KEYS"])
+            self.page.cfg.save_env_values({})
+            self.status.say(f"Saved {len(keys)} key{'s' if len(keys) != 1 else ''}. Use Test to check them.",
+                            dt.SUCCESS)
+            self.page.refresh()
+            return
         v = self.key.get_key()
         if not v:
             self.status.say("Paste a key first.", dt.WARNING)
@@ -285,6 +390,12 @@ class ProviderCard(Card):
             self.status.say("Paste a key first.", dt.WARNING)
             return
         self.status.say("Testing…", dt.TEXT_MUTED)
+        if self.pkey == "gemini":
+            val = _MultiGeminiValidator(self._all_gemini_keys())
+            val.finished.connect(self._on_tested)
+            self._validators.append(val)
+            threading.Thread(target=val.run, daemon=True).start()
+            return
         val = _Validator(self.env_key, v)
         val.finished.connect(self._on_tested)
         self._validators.append(val)
@@ -299,9 +410,11 @@ class ProviderCard(Card):
                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) \
                 != QMessageBox.StandardButton.Yes:
             return
-        self.page.cfg.remove_env_values([self.env_key])
+        self.page.cfg.remove_env_values([self.env_key] + (["GOOGLE_API_KEYS"] if self.pkey == "gemini" else []))
         self.page.cfg.save_env_values({})              # refresh live config fields
         self.key.clear_key()
+        for f in list(getattr(self, "_extra_rows", [])):
+            f.clear_key()
         self.status.say("Removed.", dt.TEXT_MUTED)
         self.page.refresh()
 
@@ -453,7 +566,11 @@ class APIKeysPage(BasePage):
         copilot = "copilot" in c.available_llm_providers()
         state = {  # key: (ready, note, selectable)
             "cloud":   (True, "Free", None),
-            "gemini":  (bool(c.google_api_key), "Key saved" if c.google_api_key else "Needs a key", None),
+            "gemini":  (bool(c.gemini_keys()),
+                        (f"{len(c.gemini_keys())} keys" if len(c.gemini_keys()) > 1 else "Key saved")
+                        if c.gemini_keys() else "Needs a key", None),
+            "groq":    (bool(c.groq_api_key), "Key saved" if c.groq_api_key else "Needs a key", None),
+            "openrouter": (bool(c.openrouter_api_key), "Key saved" if c.openrouter_api_key else "Needs a key", None),
             "claude":  (bool(c.anthropic_api_key), "Key saved" if c.anthropic_api_key else "Needs a key", None),
             "openai":  (bool(c.openai_api_key), "Key saved" if c.openai_api_key else "Needs a key", None),
             "copilot": (copilot, "Signed in" if copilot else "Sign in from the tray", None),
