@@ -23,7 +23,7 @@ class _Ok:
 
 
 def _chain(monkeypatch, provs):
-    monkeypatch.setattr(fp, "make_provider", lambda n: provs[n])
+    monkeypatch.setattr(fp, "make_provider", lambda n, k=None: provs[n])
     return fp.FallbackProvider(list(provs), log=lambda m: None)
 
 
@@ -58,15 +58,48 @@ def test_gemini_pairs_rotate_keys_and_skip_cooled(monkeypatch):
     gp._cool.clear(); gp._bad_until.clear()
 
 
-def test_config_collects_multiple_gemini_keys(monkeypatch):
+_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY",
+         "GROQ_API_KEY", "OPENROUTER_API_KEY", "GOOGLE_API_KEYS", "ANTHROPIC_API_KEYS",
+         "OPENAI_API_KEYS", "GROQ_API_KEYS", "OPENROUTER_API_KEYS", "GLANCE_ACTIVE_LLM",
+         "GLANCE_PROVIDER_ORDER", "GLANCE_FALLBACK", "GLANCE_CLOUD")
+
+
+def _clean(monkeypatch):
+    for k in _KEYS:
+        monkeypatch.delenv(k, raising=False)
+
+
+def test_every_provider_can_hold_several_keys(monkeypatch):
     from config import Config
+    _clean(monkeypatch)
+    monkeypatch.setenv("GOOGLE_API_KEY", "a")
+    monkeypatch.setenv("GOOGLE_API_KEYS", "b, c\nA,a")
+    monkeypatch.setenv("GROQ_API_KEY", "g1")
+    monkeypatch.setenv("GROQ_API_KEYS", "g2")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "c1")
+    monkeypatch.setenv("ANTHROPIC_API_KEYS", "c2,c3")
     c = Config()
-    c.google_api_key = "a"
-    c.google_api_keys_extra = "b, c\nA,a"
-    assert c.gemini_keys() == ["a", "b", "c", "A"]
-    c.groq_api_key = "g"
-    c.anthropic_api_key = c.openai_api_key = None
-    monkeypatch.setenv("GLANCE_ACTIVE_LLM", "gemini")
-    assert c.fallback_chain()[:2] == ["gemini", "groq"]
+    assert c.keys_for("gemini") == ["a", "b", "c", "A"]
+    assert c.keys_for("groq") == ["g1", "g2"]
+    assert c.keys_for("claude") == ["c1", "c2", "c3"]
+
+
+def test_user_priority_order(monkeypatch):
+    from config import Config
+    _clean(monkeypatch)
+    for k, v in (("GOOGLE_API_KEY", "a"), ("GROQ_API_KEY", "g"), ("ANTHROPIC_API_KEY", "c")):
+        monkeypatch.setenv(k, v)
+    c = Config()
+    c._persist_env = lambda *a, **k: None
+    assert c.llm_provider() == "claude"                      # automatic order until the user picks
+    c.set_order(["groq", "gemini"])                          # claude not chosen: not used
+    assert c.provider_order() == ["groq", "gemini"] and c.llm_provider() == "groq"
+    c.move_provider("gemini", -1)
+    assert c.provider_order() == ["gemini", "groq"]
+    assert c.toggle_provider("claude") is True and c.provider_order() == ["gemini", "groq", "claude"]
+    assert c.toggle_provider("groq") is False and c.provider_order() == ["gemini", "claude"]
+    assert c.fallback_chain() == ["gemini", "claude"]
     monkeypatch.setenv("GLANCE_FALLBACK", "0")
     assert c.fallback_chain() == ["gemini"]
+    c.set_active_llm("claude")                               # switching makes it priority 1
+    assert c.provider_order()[0] == "claude"
