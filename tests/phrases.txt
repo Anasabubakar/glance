@@ -1,0 +1,145 @@
+open notepad
+launch the terminal
+open files
+open settings
+open my downloads
+put this window on the right
+move this window to the left half
+make this window fullscreen
+exit full screen
+minimize everything
+show all windows
+hide this window
+close all windows
+close chrome
+quit the browser
+switch to firefox
+go to the terminal
+bring up the calculator
+open vs code
+what time is it
+what day is it
+what's the date today
+volume up
+volume down a bit
+turn the volume to 50
+turn it down
+make it louder
+unmute
+mute my computer
+brightness up
+turn up the brightness
+make the screen brighter
+dim the screen
+turn on the night light
+switch to dark mode
+switch to light mode
+enable do not disturb
+turn off bluetooth
+turn on airplane mode
+lock my computer
+take a screenshot
+screenshot
+copy
+paste
+cut this
+undo
+redo
+select everything
+save the file
+zoom in
+zoom out
+reset zoom
+refresh the page
+go back
+go forward
+new tab
+close this tab
+reopen closed tab
+next tab
+previous tab
+open a new window
+open private window
+open dev tools
+view source
+print this page
+find in page
+scroll down
+scroll up a lot
+scroll to the top
+go to the bottom
+page down
+press enter
+press escape
+hit enter
+type hello world
+type "my email is test"
+play
+pause
+next song
+previous track
+skip
+search for pizza near me
+google how to tie a tie
+look up the capital of france
+search youtube for funny cats
+play despacito on youtube
+directions to the nearest hospital
+how do i get to the airport
+translate thank you to yoruba
+how do you say hello in french
+what does ubiquitous mean
+what's the weather
+weather in lagos
+is it going to rain
+remind me in 10 minutes to call mom
+remind me tomorrow at 9am to send the report
+set a timer for 10 minutes
+timer for 30 seconds
+set an alarm for 6:30am
+wake me up at 7
+what's 25 times 4
+calculate 100 divided by 8
+what is 20 percent of 150
+convert 10 kg to pounds
+how many cups in a liter
+convert 72 fahrenheit to celsius
+how many days until christmas
+what's my battery
+how much storage is left
+what's my ip address
+which wifi am i on
+flip a coin
+roll a dice
+pick a number between 1 and 50
+what's on my clipboard
+read the selected text
+open the latest download
+open my latest screenshot
+open the file budget.xlsx
+find the file called resume
+create a folder called photos
+create a file called notes
+move invoice.pdf to documents
+copy report.docx to desktop
+rename draft.txt to final
+delete old.zip
+empty the trash
+zip my projects folder
+how big is my downloads folder
+open trash
+email sarah@example.com about the meeting
+send an email to john
+add dentist appointment to my calendar friday at 2pm
+schedule a meeting tomorrow at 10am
+every day at 8am open gmail
+at 5pm open the calculator
+in 5 minutes open youtube
+when i say focus mode turn on do not disturb and mute
+create a routine called work that opens github and opens vs code
+run my work routine
+list my routines
+delete the work routine
+minimize the terminal and open the calculator
+open youtube and search for lofi
+tile the browser left and the terminal right

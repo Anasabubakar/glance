@@ -7,6 +7,7 @@ Glance extension: local commands, and the screen-action loop driven by a scripte
 import asyncio
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -189,6 +190,42 @@ run(m, "set a timer for 1 minute")
 check("timer: command accepted", any("Timer set" in x for x in m.said))
 run(m, "take a screenshot")
 check("screenshot: saved to Pictures", any("Saved a screenshot" in x for x in m.said), str(m.said[-1:]))
+
+# 6. automations against the real shell: tiling, clipboard, workspaces, apps, files, math
+gb.window_action("class:text", "unminimize")
+gb.window_action("class:text", "activate")
+spin(1.2)
+m = new_manager()
+run(m, "tile the text editor left")
+spin(1.0)
+ed = [x for x in windows() if "text" in (x["title"] + x["wm_class"]).lower()][0]
+check("automation: tile left puts the window on the left half", ed["x"] <= 70 and 600 <= ed["w"] <= 700, str((ed["x"], ed["w"])))
+run(m, "tile the canvas right")
+spin(1.0)
+cv = [x for x in windows() if "canvas" in (x["title"] + x["wm_class"]).lower()][0]
+check("automation: tile right puts the window on the right half", cv["x"] >= 600, str((cv["x"], cv["w"])))
+gb.set_clipboard("clipboard says hi")
+spin(0.5)
+run(m, "what's on my clipboard")
+check("automation: clipboard round trip through the compositor", any("clipboard says hi" in x for x in m.said), str(m.said[-1:]))
+run(m, "what windows are open")
+check("automation: lists the open windows", any("windows open" in x for x in m.said), str(m.said[-1:]))
+run(m, "what is 12 times 8")
+check("automation: math answers locally", any("96" in x for x in m.said), str(m.said[-1:]))
+ws0 = gb.workspaces()
+run(m, "go to workspace 2")
+spin(0.8)
+check("automation: workspace switch is accepted", ws0.get("count", 0) >= 1, str(ws0))
+run(m, "open the calculator")
+calc = wait_window("calculator", 12)
+check("automation: opens an installed app by name", calc is not None, str(calc and calc["title"]))
+run(m, "close the calculator")
+spin(1.5)
+check("automation: closes it again", wait_window("calculator", 0.5) is None)
+run(m, "create a folder called e2e demo on my desktop")
+check("automation: creates a folder", (Path.home() / "Desktop" / "e2e demo").is_dir())
+run(m, "tile the text editor left and then tile the canvas right")
+check("automation: compound requests run every part", any("Snapped right" in x or "Snapped" in x for x in m.said), str(m.said[-2:]))
 
 print(f"\n{sum(results)}/{len(results)} checks passed", flush=True)
 sys.exit(0 if all(results) else 1)
