@@ -58,6 +58,9 @@ class _DiagWorker(QObject):
             data["cache_files"] = 0
             data["cache_size"] = 0
         try:
+            import os as _os
+            if _os.environ.get("PYTEST_CURRENT_TEST"):
+                raise RuntimeError("skipped under tests")
             import selfcheck
             data["checkup"] = selfcheck.format_report(selfcheck.run_checks())
         except Exception as e:

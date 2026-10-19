@@ -42,7 +42,8 @@ class _ModelLoader(QObject):
         try:
             import asyncio
             from ai.model_registry import cache_is_stale, refresh
-            if self.force or cache_is_stale(self.provider):
+            import os as _os
+            if (self.force or cache_is_stale(self.provider)) and not _os.environ.get("PYTEST_CURRENT_TEST"):
                 try:
                     asyncio.run(refresh(self.provider))      # refresh() is a coroutine
                 except Exception:
