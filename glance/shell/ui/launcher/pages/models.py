@@ -22,6 +22,8 @@ MODEL_PROVIDERS = [
     ("claude", "Claude", "anthropic_api_key"),
     ("openai", "OpenAI", "openai_api_key"),
     ("gemini", "Google Gemini", "google_api_key"),
+    ("groq", "Groq", "groq_api_key"),
+    ("openrouter", "OpenRouter: free models", "openrouter_api_key"),
 ]
 _NOT_CHAT = re.compile(r"image|tts|audio|live|embed|robotics|computer-use|imagen|veo|nano|omni|"
                        r"antigravity|gemma|learnlm|aqa", re.I)
@@ -38,9 +40,13 @@ class _ModelLoader(QObject):
     def run(self):
         models = []
         try:
-            if self.force:
-                from ai.model_registry import refresh
-                refresh(self.provider)
+            import asyncio
+            from ai.model_registry import cache_is_stale, refresh
+            if self.force or cache_is_stale(self.provider):
+                try:
+                    asyncio.run(refresh(self.provider))      # refresh() is a coroutine
+                except Exception:
+                    pass
             from ai.model_registry import cached_models
             models = cached_models(self.provider) or []
         except Exception:
@@ -83,7 +89,12 @@ class _ProviderModels(Card):
         w.setLayout(head)
         self._layout.addWidget(w)
 
-        if not has_key:
+        if self.key == "openrouter" and not getattr(self.page._cfg, "openrouter_api_key", None):
+            go = FlatButton("Add a key")
+            go.clicked.connect(lambda: self.page.goto("api_keys"))
+            self._layout.addWidget(Banner("These models are free. Add your free OpenRouter key under "
+                                          "AI & Keys to use them.", "info", go))
+        elif not has_key:
             go = FlatButton("Add a key")
             go.clicked.connect(lambda: self.page.goto("api_keys"))
             self._layout.addWidget(Banner(f"Add your {self.name} key under AI & Keys to see its models.",
@@ -114,6 +125,8 @@ class _ProviderModels(Card):
             mid.setStyleSheet(f"color: {dt.TEXT_DIM.name()};")
             col.addWidget(mid)
             rl.addLayout(col, 1)
+            if self.key == "openrouter":
+                rl.addWidget(PillBadge("Free", "success"))
             if not m["vision"]:
                 rl.addWidget(PillBadge("Text only", "default"))
             if is_text:
@@ -175,7 +188,7 @@ class ModelsPage(BasePage):
 
     def on_activate(self):
         for key, _n, _a in MODEL_PROVIDERS:
-            if getattr(self._cfg, _a, None):
+            if getattr(self._cfg, _a, None) or key == "openrouter":
                 self.load(key)
         self.render_all()
 
@@ -213,7 +226,7 @@ class ModelsPage(BasePage):
             row.addWidget(b)
         self._auto.add_layout(row)
         for key, _name, attr in MODEL_PROVIDERS:
-            has = bool(getattr(c, attr, None)) if c else False
+            has = (bool(getattr(c, attr, None)) if c else False) or key == "openrouter"
             self._cards[key].render(self._data.get(key, []), has, active_provider, active_model, active_text)
 
     def use(self, provider: str, model_id: str, kind: str = "vision"):

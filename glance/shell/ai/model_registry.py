@@ -45,6 +45,14 @@ _FALLBACKS: dict[str, list[dict]] = {
         {"id": "gpt-4o-mini",   "label": "GPT-4o mini",  "vision": True},
         {"id": "gpt-4-turbo",   "label": "GPT-4 Turbo",  "vision": True},
     ],
+    "groq": [
+        {"id": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B", "vision": False},
+        {"id": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (fastest)", "vision": False},
+        {"id": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout", "vision": True},
+    ],
+    "openrouter": [
+        {"id": "openrouter/free", "label": "Free models router (automatic)", "vision": True},
+    ],
     "gemini": [
         {"id": "gemini-flash-latest", "label": "Gemini Flash (latest)", "vision": True},
         {"id": "gemini-pro-latest",   "label": "Gemini Pro (latest)",   "vision": True},
@@ -167,7 +175,48 @@ async def _fetch_gemini() -> list[dict]:
     return out
 
 
+async def _fetch_groq() -> list[dict]:
+    if not cfg.groq_api_key:
+        return []
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get("https://api.groq.com/openai/v1/models",
+                             headers={"Authorization": f"Bearer {cfg.groq_api_key}"})
+    r.raise_for_status()
+    skip = ("whisper", "tts", "playai", "guard", "orpheus", "distil")
+    out = []
+    for m in r.json().get("data", []):
+        mid = m.get("id", "")
+        if not mid or any(x in mid for x in skip) or m.get("active") is False:
+            continue
+        out.append({"id": mid, "label": mid, "vision": "llama-4" in mid or "vision" in mid})
+    out.sort(key=lambda m: (not m["vision"], m["id"]))
+    return out
+
+
+async def _fetch_openrouter() -> list[dict]:
+    """The FREE models only (prompt and completion price both 0). No key is needed to list."""
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get("https://openrouter.ai/api/v1/models")
+    r.raise_for_status()
+    out = [{"id": "openrouter/free", "label": "Free models router (automatic)", "vision": True}]
+    for m in r.json().get("data", []):
+        pr = m.get("pricing") or {}
+        try:
+            free = float(pr.get("prompt", "1")) == 0 and float(pr.get("completion", "1")) == 0
+        except (TypeError, ValueError):
+            free = False
+        mid = m.get("id", "")
+        if not free or not mid or mid == "openrouter/free":
+            continue
+        mods = (m.get("architecture") or {}).get("input_modalities") or []
+        out.append({"id": mid, "label": m.get("name") or mid, "vision": "image" in mods})
+    out.sort(key=lambda m: (m["id"] != "openrouter/free", not m["vision"], m["id"]))
+    return out
+
+
 _FETCHERS = {
+    "groq":       _fetch_groq,
+    "openrouter": _fetch_openrouter,
     "claude":  _fetch_claude,
     "openai":  _fetch_openai,
     "gemini":  _fetch_gemini,
