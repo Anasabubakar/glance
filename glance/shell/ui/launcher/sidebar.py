@@ -20,6 +20,7 @@ NAV_SECTIONS = [
     ("Configure", [
         ("api_keys", "AI & Keys", "key"),
         ("models", "Models", "ai"),
+        ("automations", "Automations", "activity"),
         ("settings", "Settings", "sliders"),
     ]),
     ("Your data", [

@@ -31,7 +31,7 @@ def window():
 
 
 def test_every_page_builds_and_activates(window):
-    assert len(window._pages) == 9
+    assert len(window._pages) == 10
     for key in window._pages:
         window._navigate(key)
         _app.processEvents()

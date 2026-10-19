@@ -85,6 +85,7 @@ class LauncherWindow(QMainWindow):
         from .pages.api_keys import APIKeysPage
         from .pages.settings import SettingsPage
         from .pages.memory import MemoryPage
+        from .pages.automations import AutomationsPage
         from .pages.hubs import build_hubs
 
         hubs = build_hubs()
@@ -92,6 +93,7 @@ class LauncherWindow(QMainWindow):
             ("home",       HomePage(self)),
             ("api_keys",   APIKeysPage(self)),
             ("models",     hubs["models"](self)),
+            ("automations", AutomationsPage(self)),
             ("settings",   SettingsPage(self)),
             ("memory",     MemoryPage(self)),
             ("extensions", hubs["extensions"](self)),
