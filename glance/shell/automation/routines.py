@@ -104,7 +104,28 @@ def _imperative(step: str) -> str:
 def split_steps(text: str) -> list:
     """'open gmail, open calendar and set the volume to 30' -> three commands."""
     parts = [p.strip() for p in re.split(r"\s*(?:,\s*(?:and\s+|then\s+)?|\s+and then\s+|\s+then\s+|\s+and\s+(?=(?:open|close|set|turn|play|pause|mute|type|press|go|search|volume|launch|start|tile|move|minimi[sz]e|maximi[sz]e|switch|take|show|lock|run|unmute)(?:s|es)?\b))", text) if p.strip()]
-    return [_imperative(p) for p in (parts or [text.strip()])]
+    steps = []
+    for p in (parts or [text.strip()]):
+        p = _imperative(p)
+        mm = re.match(r"(open|launch|start)\s+(.+)$", p, re.I)
+        if mm and re.search(r"\s*(?:,|\band\b)\s*", mm.group(2)):
+            items = [i.strip() for i in re.split(r"\s*(?:,|\band\b)\s*", mm.group(2)) if i.strip()]
+            if all(len(i.split()) <= 3 for i in items):
+                steps += [f"{mm.group(1).lower()} {i}" for i in items]       # "open a and b" -> two steps
+                continue
+        steps.append(p)
+    # "opens youtube and github": a bare name after an "open ..." step means "open <name>"
+    fixed, last_verb = [], ""
+    for st in steps:
+        first = st.split(" ", 1)[0].lower()
+        if first in ("open", "launch", "start") and len(st.split()) > 1:
+            last_verb = first
+        elif last_verb and len(st.split()) <= 3 and first not in (
+                "close", "set", "turn", "play", "pause", "mute", "type", "press", "go", "search", "volume",
+                "tile", "move", "minimize", "maximize", "switch", "take", "show", "lock", "run", "unmute"):
+            st = f"{last_verb} {st}"
+        fixed.append(st)
+    return fixed
 
 
 # ── rules ────────────────────────────────────────────────────────────────

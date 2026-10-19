@@ -89,6 +89,40 @@ def open_site(ctx, m, text):
     return Result("")
 
 
+def _resolvable(ctx, name: str):
+    """A site URL, or an installed app name, for one item of "open A and B"."""
+    url = _site_for(name)
+    if url:
+        return ("url", url)
+    from . import apps
+    a = apps.find(name)
+    return ("app", a["name"]) if a else None
+
+
+@rule(r"(?:open|launch|start|pull up|bring up)\s+(?:up\s+)?(?P<l>[\w .\-']{2,24}(?:\s*(?:,|\band\b)\s*[\w .\-']{2,24})+)$", name="open_many", prio=38,
+      dry=lambda t: _open_many_ok(t))
+def open_many(ctx, m, text):
+    items = [i.strip() for i in re.split(r"\s*(?:,|\band\b)\s*", m.group("l")) if i.strip()]
+    found = [(i, _resolvable(ctx, re.sub(r"^(?:the|my)\s+", "", i))) for i in items]
+    if len(items) < 2 or any(r is None for _i, r in found):
+        return None
+    for name, (kind, target) in found:
+        ctx.caption(f"Opening {name}", 0.3)
+        if kind == "url":
+            ctx.open_url(target)
+        else:
+            ctx.launch(target)
+    return Result("Opening " + ", ".join(i for i, _r in found) + ".")
+
+
+def _open_many_ok(text: str) -> bool:
+    m = re.match(r"(?:open|launch|start|pull up|bring up)\s+(?:up\s+)?(?P<l>[\w .\-']{2,24}(?:\s*(?:,|\band\b)\s*[\w .\-']{2,24})+)$", text)
+    if not m:
+        return False
+    items = [re.sub(r"^(?:the|my)\s+", "", i.strip()) for i in re.split(r"\s*(?:,|\band\b)\s*", m.group("l")) if i.strip()]
+    return len(items) >= 2 and all(_site_for(i) or __import__("automation.apps", fromlist=["find"]).find(i) for i in items)
+
+
 @rule(r"(?:search|look|find|google)\s*(?:the web\s+|online\s+)?(?:for\s+)?(?P<q>.+?)\s+(?:on|in|at|using|with)\s+(?P<e>[\w .]{2,18})$|"
       r"(?:search|look up)\s+(?P<e2>[\w .]{2,18}?)\s+for\s+(?P<q2>.+)$", name="search_engine", prio=41)
 def search_engine(ctx, m, text):
