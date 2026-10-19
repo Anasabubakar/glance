@@ -437,6 +437,15 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-19" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.19 — Automations</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Fast, exact automations handle most everyday requests with no AI: windows, apps, system settings, shortcuts, files, local answers and web helpers</li>
+        <li>• Chains of commands run every part or none of it</li>
+        <li>• Your own routines, timers, reminders and schedules, managed on the new Automations page</li>
+        <li>• Macros, and a fix so the first click or stroke is never lost</li>
+      </ul>
+
       <h2 id="v0-3-18" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.18 — Typing, drag and drop, drawing</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
