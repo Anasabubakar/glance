@@ -79,29 +79,27 @@ class _Validator(QObject):
         self.finished.emit(self.env_key, ok, msg)
 
 
-class _MultiGeminiValidator(QObject):
-    """Tests every Gemini key and reports how many work."""
+class _MultiKeyValidator(QObject):
+    """Tests every key of one provider and reports how many work."""
     finished = pyqtSignal(str, bool, str)
 
-    def __init__(self, keys: list):
+    def __init__(self, env_key: str, keys: list):
         super().__init__()
-        self.keys = keys
+        self.env_key, self.keys = env_key, keys
 
     def run(self):
         good = 0
-        try:
-            import httpx
-            for v in self.keys:
-                try:
-                    r = httpx.get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
-                                  headers={"x-goog-api-key": v}, timeout=15)
-                    good += r.status_code in (200, 429)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        for v in self.keys:
+            res: list = []
+            one = _Validator(self.env_key, v)
+            one.finished.connect(lambda _e, ok, _m, res=res: res.append(ok))
+            try:
+                one.run()
+            except Exception:
+                pass
+            good += bool(res and res[0])
         n = len(self.keys)
-        self.finished.emit("GOOGLE_API_KEY", good == n and n > 0,
+        self.finished.emit(self.env_key, good == n and n > 0,
                            f"All {n} keys work" if good == n else f"{good} of {n} keys work")
 
 
@@ -283,11 +281,9 @@ class ProviderCard(Card):
             self._buttons(bl, "Save & use", self._custom_save, self._custom_test, self._custom_remove)
         elif self.env_key:
             cur = getattr(cfg, _CFG_ATTR[self.env_key], "") if cfg else ""
-            self.key = KeyField("API key" if self.pkey != "gemini" else "Main API key",
-                                self.env_key, cur or "")
+            self.key = KeyField("Main API key", self.env_key, cur or "")
             bl.addWidget(self.key)
-            if self.pkey == "gemini":
-                self._build_extra_keys(bl, cfg)
+            self._build_extra_keys(bl, cfg)
             self._buttons(bl, "Save", self._save, self._test, self._remove, self.help_url)
         elif self.pkey == "ollama":
             bl.addWidget(_hint("Ollama runs models on your own computer. Manage and download them under "
@@ -301,15 +297,16 @@ class ProviderCard(Card):
 
     # extra Gemini keys -----------------------------------------------------------
     def _build_extra_keys(self, bl: QVBoxLayout, cfg):
-        bl.addWidget(_hint("Have more keys (for example from other Google accounts)? Add them "
-                           "here. Glance spreads requests across all of them, so one key's free "
-                           "limit doesn't stop you."))
+        bl.addWidget(_hint("Have more keys for this provider? Add them here. Glance spreads "
+                           "requests across all of them, and switches to the next one when a "
+                           "key reaches its limit."))
         self._extra_rows: list = []
         self._extra_box = QVBoxLayout()
         self._extra_box.setSpacing(8)
         bl.addLayout(self._extra_box)
         import re as _re
-        for k in _re.split(r"[,\s]+", getattr(cfg, "google_api_keys_extra", "") if cfg else ""):
+        import os as _os
+        for k in _re.split(r"[,\s]+", _os.getenv(self.env_key + "S", "")):
             if k.strip():
                 self._add_extra_row(k.strip())
         add = GhostButton("Add another key", icon="plus")
@@ -324,7 +321,7 @@ class ProviderCard(Card):
         h = QHBoxLayout(w)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(8)
-        f = KeyField("", "GOOGLE_API_KEYS", value, placeholder="Another Gemini key…")
+        f = KeyField("", self.env_key + "S", value, placeholder="Another key…")
         h.addWidget(f, 1)
         rm = GhostButton("", icon="trash")
         rm.setFixedSize(34, 34)
@@ -339,7 +336,7 @@ class ProviderCard(Card):
         w.setParent(None)
         w.deleteLater()
 
-    def _all_gemini_keys(self) -> list:
+    def _all_keys(self) -> list:
         out, seen = [], set()
         for k in [self.key.get_key()] + [f.get_key() for f in getattr(self, "_extra_rows", [])]:
             if k and k not in seen:
@@ -361,16 +358,17 @@ class ProviderCard(Card):
 
     # key actions ---------------------------------------------------------------
     def _save(self):
-        if self.pkey == "gemini":
-            keys = self._all_gemini_keys()
+        if self.env_key:
+            keys = self._all_keys()
             if not keys:
                 self.status.say("Paste a key first.", dt.WARNING)
                 return
-            self.page.cfg.save_env_values({"GOOGLE_API_KEY": keys[0]})
+            extra = self.env_key + "S"
+            self.page.cfg.save_env_values({self.env_key: keys[0]})
             if keys[1:]:
-                self.page.cfg.save_env_values({"GOOGLE_API_KEYS": ",".join(keys[1:])})
+                self.page.cfg.save_env_values({extra: ",".join(keys[1:])})
             else:
-                self.page.cfg.remove_env_values(["GOOGLE_API_KEYS"])
+                self.page.cfg.remove_env_values([extra])
             self.page.cfg.save_env_values({})
             self.status.say(f"Saved {len(keys)} key{'s' if len(keys) != 1 else ''}. Use Test to check them.",
                             dt.SUCCESS)
@@ -390,8 +388,8 @@ class ProviderCard(Card):
             self.status.say("Paste a key first.", dt.WARNING)
             return
         self.status.say("Testing…", dt.TEXT_MUTED)
-        if self.pkey == "gemini":
-            val = _MultiGeminiValidator(self._all_gemini_keys())
+        if self.env_key:
+            val = _MultiKeyValidator(self.env_key, self._all_keys())
             val.finished.connect(self._on_tested)
             self._validators.append(val)
             threading.Thread(target=val.run, daemon=True).start()
@@ -410,7 +408,7 @@ class ProviderCard(Card):
                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) \
                 != QMessageBox.StandardButton.Yes:
             return
-        self.page.cfg.remove_env_values([self.env_key] + (["GOOGLE_API_KEYS"] if self.pkey == "gemini" else []))
+        self.page.cfg.remove_env_values([self.env_key, self.env_key + "S"])
         self.page.cfg.save_env_values({})              # refresh live config fields
         self.key.clear_key()
         for f in list(getattr(self, "_extra_rows", [])):
@@ -425,8 +423,9 @@ class ProviderCard(Card):
             return
         self.page.cfg.save_env_values({"GLANCE_CUSTOM_BASE_URL": url, "GLANCE_CUSTOM_MODEL": model,
                                        "GLANCE_CUSTOM_API_KEY": self.key.get_key()})
-        self.page.cfg.set_active_llm("custom")
-        self.status.say("Saved. Custom endpoint is now in use.", dt.SUCCESS)
+        if "custom" not in self.page.cfg.provider_order():
+            self.page.cfg.toggle_provider("custom")      # add it to the priority list
+        self.status.say("Saved. Custom endpoint added to your priority list.", dt.SUCCESS)
         self.page.refresh()
 
     def _custom_test(self):
@@ -443,8 +442,7 @@ class ProviderCard(Card):
     def _custom_remove(self):
         self.page.cfg.remove_env_values(["GLANCE_CUSTOM_BASE_URL", "GLANCE_CUSTOM_MODEL",
                                          "GLANCE_CUSTOM_API_KEY"])
-        if self.page.cfg.llm_provider() == "custom":
-            self.page.cfg.remove_env_values(["GLANCE_ACTIVE_LLM"])
+        self.page.cfg.set_order([p for p in self.page.cfg.provider_order() if p != "custom"])
         self.url.clear()
         self.model.clear()
         self.key.clear_key()
@@ -452,23 +450,26 @@ class ProviderCard(Card):
         self.page.refresh()
 
     # state ---------------------------------------------------------------------
-    def set_state(self, active: bool, ready: bool, note: str = "", selectable: bool | None = None):
-        border = dt.ACCENT_LINE if active else dt.BORDER_CSS
+    def set_state(self, rank, ready: bool, note: str = "", selectable: bool | None = None):
+        """rank: this provider's place in the priority list (1 = first), or None."""
+        on = rank is not None
+        border = dt.ACCENT_LINE if on else dt.BORDER_CSS
         self.setStyleSheet(f"QFrame#Card {{ background: {dt.BG_CARD.name()}; border: 1px solid {border}; "
                            f"border-radius: {dt.CARD_RADIUS}px; }}")
         has_body = self.env_key is not None or self.pkey == "custom"
-        self._needs_setup = (not ready) and has_body and not active
-        if active:
-            self.pill.set_state("In use", "accent")
-            self.action.setText("In use")
-            self.action.setEnabled(False)
+        self._needs_setup = (not ready) and has_body and not on
+        if on:
+            self.pill.set_state(f"Priority {rank}" + (" · " + note if note and note not in ("Key saved",) else ""),
+                                "accent")
+            self.action.setText("Remove")
+            self.action.setEnabled(True)
             return
         self.pill.set_state(note or ("Ready" if ready else "Needs setup"), "success" if ready else "warning")
         if self._needs_setup:
             self.action.setText("Add key" if self.env_key else "Set up")
             self.action.setEnabled(True)
         else:
-            self.action.setText("Use this")
+            self.action.setText("Add to list")
             self.action.setEnabled(ready if selectable is None else selectable)
 
 
@@ -489,6 +490,13 @@ class APIKeysPage(BasePage):
         self._svc_status: dict[str, _Status] = {}
         self._validators: list = []
         self._ollama_ok = False
+
+        self.body_layout.addWidget(self.section_label("Priority order"))
+        self.body_layout.addWidget(self.hint_label(
+            "Choose every AI you want to use and put them in order. Glance asks #1 first, and "
+            "if it is busy or out of quota it moves to #2, then #3, and so on."))
+        self._order_card = Card(padding=18)
+        self.body_layout.addWidget(self._order_card)
 
         self.body_layout.addWidget(self.section_label("Your AI"))
         for spec in PROVIDERS:
@@ -558,32 +566,79 @@ class APIKeysPage(BasePage):
         self._ollama_ok = ok
         self.refresh()
 
+    _NAMES = {s[0]: s[1] for s in PROVIDERS}
+
     def refresh(self):
         c = self.cfg
         if not c:
             return
-        active = c.llm_provider()
         copilot = "copilot" in c.available_llm_providers()
+
+        def keyed(p):
+            n = len(c.keys_for(p))
+            return (n > 0, (f"{n} keys" if n > 1 else "Key saved") if n else "Needs a key", None)
+
         state = {  # key: (ready, note, selectable)
             "cloud":   (True, "Free", None),
-            "gemini":  (bool(c.gemini_keys()),
-                        (f"{len(c.gemini_keys())} keys" if len(c.gemini_keys()) > 1 else "Key saved")
-                        if c.gemini_keys() else "Needs a key", None),
-            "groq":    (bool(c.groq_api_key), "Key saved" if c.groq_api_key else "Needs a key", None),
-            "openrouter": (bool(c.openrouter_api_key), "Key saved" if c.openrouter_api_key else "Needs a key", None),
-            "claude":  (bool(c.anthropic_api_key), "Key saved" if c.anthropic_api_key else "Needs a key", None),
-            "openai":  (bool(c.openai_api_key), "Key saved" if c.openai_api_key else "Needs a key", None),
+            "gemini":  keyed("gemini"), "groq": keyed("groq"), "openrouter": keyed("openrouter"),
+            "claude":  keyed("claude"), "openai": keyed("openai"),
             "copilot": (copilot, "Signed in" if copilot else "Sign in from the tray", None),
             "ollama":  (self._ollama_ok, "Running" if self._ollama_ok else "Not running", True),
             "custom":  (c.custom_ready(), "Configured" if c.custom_ready() else "Needs setup", None),
         }
+        order = c.provider_order()
         for key, card in self._cards.items():
             ready, note, selectable = state[key]
-            card.set_state(key == active, ready, note, selectable)
+            rank = order.index(key) + 1 if key in order else None
+            card.set_state(rank, ready, note, selectable)
+        self._render_order(order, state)
+
+    def _render_order(self, order: list, state: dict):
+        card = self._order_card
+        card.clear_layout()
+        if not order:
+            card.add_widget(self.hint_label("Nothing chosen yet. Add a provider below (use "
+                                            "'Add to list'), then drag it up with the arrows."))
+            return
+        for i, key in enumerate(order):
+            if i:
+                card.add_widget(Divider())
+            row = QHBoxLayout()
+            row.setSpacing(10)
+            n = QLabel(str(i + 1))
+            n.setFixedWidth(22)
+            n.setFont(dt.font(15, dt.QFont.Weight.DemiBold))
+            n.setStyleSheet(f"color: {dt.BRAND_INDIGO.name()};")
+            row.addWidget(n)
+            name = QLabel(self._NAMES.get(key, key.title()))
+            name.setFont(dt.font(14, dt.QFont.Weight.Medium))
+            row.addWidget(name)
+            note = state.get(key, (True, "", None))[1]
+            if note:
+                row.addWidget(PillBadge(note, "default"))
+            row.addWidget(PillBadge("main" if i == 0 else "fallback", "accent" if i == 0 else "default"))
+            row.addStretch()
+            up = GhostButton("", icon="chevron-up")
+            up.setFixedSize(34, 34)
+            up.setEnabled(i > 0)
+            up.clicked.connect(lambda _c=False, k=key: self._move(k, -1))
+            dn = GhostButton("", icon="chevron-down")
+            dn.setFixedSize(34, 34)
+            dn.setEnabled(i < len(order) - 1)
+            dn.clicked.connect(lambda _c=False, k=key: self._move(k, 1))
+            row.addWidget(up)
+            row.addWidget(dn)
+            card.add_layout(row)
+
+    def _move(self, key: str, delta: int):
+        if self.cfg:
+            self.cfg.move_provider(key, delta)
+        self.refresh()
 
     def _activate(self, key: str):
+        """The card button adds a provider to the priority list, or takes it off."""
         if self.cfg:
-            self.cfg.set_active_llm(key)
+            self.cfg.toggle_provider(key)
         self.refresh()
 
     # ── voice & search services ───────────────────────────────────────────
