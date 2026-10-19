@@ -28,12 +28,57 @@ _LEAD = re.compile(
 _TAIL = re.compile(r"[\s.!?,]*(?:please|for me|now|thanks|thank you|right now|real quick)?[\s.!?,]*$", re.I)
 
 
+_THIRD = {"puts": "put", "sets": "set", "opens": "open", "closes": "close", "tiles": "tile",
+          "moves": "move", "minimizes": "minimize", "minimises": "minimize", "maximizes": "maximize",
+          "maximises": "maximize", "turns": "turn", "plays": "play", "pauses": "pause", "mutes": "mute",
+          "starts": "start", "stops": "stop", "takes": "take", "shows": "show", "switches": "switch",
+          "launches": "launch", "searches": "search", "locks": "lock", "snaps": "snap", "makes": "make",
+          "creates": "create", "deletes": "delete", "renames": "rename", "copies": "copy", "zips": "zip",
+          "finds": "find", "runs": "run", "adds": "add", "reminds": "remind"}
+_FIXES = [(re.compile(r"\bset (?:your|the|a|an|my) (timer|alarm)\b", re.I), r"set a \1"),
+          (re.compile(r"\bset (?:a )?time(?:r)? for\b", re.I), "set a timer for"),
+          (re.compile(r"\b(?:tail|tell|style|tyle)(?=\s+(?:this|the|that)\s+window)", re.I), "tile"),
+          (re.compile(r"\b(?:on|to) the (?:write|wright|rite)\b", re.I), "on the right"),
+          (re.compile(r"\bmini?mize\b", re.I), "minimize"),
+          (re.compile(r"\b(?:opens)\s+(?=youtube|github|gmail|the|my)", re.I), "open "),
+          (re.compile(r"\bvolume (?:app|op)\b", re.I), "volume up"),
+          (re.compile(r"\byoutube\b", re.I), "youtube")]
+
+
+def strip_wake_word(text: str) -> str:
+    """Remove a leading wake word however Whisper spelled it ("hey glans,", "heyglow", "Glenn")."""
+    try:
+        from audio.ambient_listener import _word_is_wake
+    except Exception:
+        return text
+    words = list(re.finditer(r"[A-Za-z']+", text))
+    for i, m in enumerate(words[:3]):
+        w = m.group(0).lower()
+        cand = [w]
+        for pre in ("hey", "okay", "ok", "hi"):
+            if w.startswith(pre) and len(w) > len(pre) + 2:
+                cand.append(w[len(pre):])
+        if any(_word_is_wake(c) for c in cand):
+            return re.sub(r"^[\s,.:;!?\-]+", "", text[m.end():]).strip()
+    return text
+
+
+def normalize(text: str) -> str:
+    t = strip_wake_word((text or "").strip())
+    for rx, rep in _FIXES:
+        t = rx.sub(rep, t)
+    w = t.split(" ", 1)
+    if w and w[0].lower() in _THIRD:
+        t = _THIRD[w[0].lower()] + (" " + w[1] if len(w) > 1 else "")
+    return t
+
+
 def clean(text: str) -> str:
-    t = (text or "").strip()
+    t = normalize(text)
     for _ in range(2):
         t = _LEAD.sub("", t)
     t = _TAIL.sub("", t).strip()
-    return t
+    return normalize(t) if t != text else t
 
 
 _DRY: dict = {}            # rule name -> fn(text) -> bool, for catch-all rules that can't be judged by regex

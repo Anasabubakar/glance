@@ -237,3 +237,37 @@ def test_tile_pair_and_make_fullscreen():
     handle(t, "type hello world")
     assert ("type", "hello world") in t.calls
     assert handle(FakeCtx(wins=[]), "type something in the editor") is None
+
+
+@pytest.mark.parametrize("heard,said", [
+    ("hey glans, tile this window left", "tile this window left"),
+    ("Heyglow puts this window on the right", "put this window on the right"),
+    ("Hey, Glenn, set your timer for one minute.", "set a timer for one minute"),
+    ("Hey Glans, copy that", "copy that"),
+    ("tail this window left", "tile this window left"),
+    ("okay glance volume app", "volume up"),
+])
+def test_mis_heard_commands_are_repaired(heard, said):
+    from automation.registry import clean
+    assert clean(heard) == said
+
+
+def test_heard_phrases_from_a_real_session_are_handled():
+    for phrase in ("hey glans, tile this window left", "Heyglow puts this window on the right",
+                   "Hey, Glenn, set your timer for one minute.", "Hey Glans, copy that"):
+        assert automation.understands(phrase), phrase
+    c = ctx()
+    handle(c, "Hey, Glenn, set your timer for one minute.")
+    handle(c, "hey glans, tile this window left")
+    assert ("window", "3", "tile_left") in c.calls
+
+
+def test_open_several_sites_and_routine_steps(tmp_path, monkeypatch):
+    c = ctx()
+    r = handle(c, "open youtube and github")
+    assert r is not None and len(calls(c, "url")) == 2
+    assert routines.split_steps("opens youtube and github and sets the volume to 30") == [
+        "open youtube", "open github", "set the volume to 30"]
+    monkeypatch.setattr(routines, "FILE", tmp_path / "r.json")
+    r = handle(c, "Glans create a routine called tests that opens YouTube and GitHub")
+    assert "Saved the routine" in r.say and routines.load()[0]["steps"] == ["open youtube", "open github"]

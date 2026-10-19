@@ -69,7 +69,8 @@ def _skeleton(word: str) -> str:
 
 
 _SINGLE_WAKE = {"glance", "clackie", "clacki", "clackey", "clacke", "klacky", "klacki",
-                "cracky", "clarky"}
+                "cracky", "clarky", "glans", "glanz", "glances", "glance's", "glens", "glenn", "glen",
+                "glow", "glo", "glass", "glaze", "blanche", "klan", "clans", "clance", "glants"}
 
 
 def _word_is_wake(w: str) -> bool:
