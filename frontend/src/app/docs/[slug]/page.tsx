@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-15" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.15 — Provider priority</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Choose every provider you want and set their priority; Glance falls back down the list</li>
+        <li>• Several keys for Gemini, Claude, OpenAI, Groq and OpenRouter, spread automatically</li>
+        <li>• The Glance icon now shows in the dock on Wayland</li>
+      </ul>
+
       <h2 id="v0-3-14" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.14 — Many keys, more providers</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
