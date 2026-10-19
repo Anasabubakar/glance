@@ -48,20 +48,41 @@ def extension_active() -> bool:
         return False
 
 
+SYSTEM_EXT = Path("/usr/share/gnome-shell/extensions") / UUID
+
+
+def _system_copy_current(src: Path) -> bool:
+    """True when the .deb installed the same extension system-wide (it is then loaded at login
+    with no per-user copy, which would otherwise override it and keep old code running)."""
+    try:
+        return (SYSTEM_EXT / "extension.js").read_bytes() == (src / "extension.js").read_bytes() \
+            and (SYSTEM_EXT / "motion.js").read_bytes() == (src / "motion.js").read_bytes()
+    except OSError:
+        return False
+
+
 def _install_extension() -> bool:
-    """Copy the bundled extension into the user's dir (only when missing/outdated)
-    and add it to GNOME's enabled list. Returns True if anything changed."""
+    """Make sure GNOME will load the matching extension at the next login and that it is
+    enabled. Returns True if anything changed."""
     src, dst = _bundled_extension(), _user_ext_dir()
     if src is None:
         return False
     changed = False
-    try:
-        if not dst.exists() or (dst / "extension.js").read_bytes() != (src / "extension.js").read_bytes() \
-                or (dst / "motion.js").read_bytes() != (src / "motion.js").read_bytes():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
-            changed = True
-    except OSError:
-        return False
+    if _system_copy_current(src):
+        if dst.exists() and dst.name == UUID:           # a stale per-user copy would win: remove ours
+            try:
+                shutil.rmtree(dst)
+                changed = True
+            except OSError:
+                pass
+    else:
+        try:
+            if not dst.exists() or (dst / "extension.js").read_bytes() != (src / "extension.js").read_bytes() \
+                    or (dst / "motion.js").read_bytes() != (src / "motion.js").read_bytes():
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+                changed = True
+        except OSError:
+            return False
     try:
         cur = subprocess.run(["gsettings", "get", "org.gnome.shell", "enabled-extensions"],
                              capture_output=True, text=True, timeout=5).stdout.strip()
@@ -89,7 +110,7 @@ def create_overlay():
         # only at the next login.
         note = ("Glance installed its always-on-top cursor for GNOME. "
                 "Log out and back in once to turn it on."
-                if _user_ext_dir().exists() else None)
+                if (_user_ext_dir().exists() or SYSTEM_EXT.exists()) else None)
         return CursorOverlay(), note
     from ui.overlay import CursorOverlay
     return CursorOverlay(), None

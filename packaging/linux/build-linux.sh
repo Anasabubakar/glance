@@ -185,6 +185,14 @@ LAUNCHER
         fi
     done
 
+    # The GNOME extension goes where GNOME reads system extensions, so the NEXT login after
+    # installing or updating always loads the matching version (no second login needed).
+    EXT_SRC="glance/shell/gnome_ext/glance-cursor@glance.app"
+    EXT_DST="$DEB_ROOT/usr/share/gnome-shell/extensions/glance-cursor@glance.app"
+    mkdir -p "$EXT_DST"
+    cp "$EXT_SRC"/extension.js "$EXT_SRC"/motion.js "$EXT_SRC"/metadata.json "$EXT_DST"/
+    cp "$EXT_SRC"/glance-cursor.png "$EXT_DST"/ 2>/dev/null || true
+
     mkdir -p "$DEB_ROOT/usr/share/metainfo"
     cp packaging/linux/glance.metainfo.xml "$DEB_ROOT/usr/share/metainfo/glance.metainfo.xml"
 
@@ -220,6 +228,13 @@ fi
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache -f /usr/share/icons/hicolor/ 2>/dev/null || true
 fi
+# An older per-user copy of the extension would override the one in /usr/share and keep
+# the old code loading at login. Remove ours (only that exact folder) for every user.
+for d in /home/*/.local/share/gnome-shell/extensions/glance-cursor@glance.app; do
+    if [ -d "$d" ] && [ "$(basename "$d")" = "glance-cursor@glance.app" ]; then
+        rm -rf -- "$d" || true
+    fi
+done
 POSTINST
     chmod 0755 "$DEB_ROOT/DEBIAN/postinst"
 

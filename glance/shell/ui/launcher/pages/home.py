@@ -72,7 +72,7 @@ class _HomeWorker(QObject):
                              and sys.platform.startswith("linux"))
             if data["gnome"]:
                 from screen import gnome_bridge
-                data["ext_active"] = gnome_bridge.available()
+                data["ext_active"] = gnome_bridge.available() and not gnome_bridge.outdated()
         except Exception:
             pass
         try:

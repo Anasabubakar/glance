@@ -184,11 +184,48 @@ def supports_windows() -> bool:
     return _win_ok
 
 
+def extension_version():
+    """The version number of the extension code running in the shell (None if unknown)."""
+    try:
+        r = subprocess.run(["gdbus", "call", "--session", "--dest", SERVICE, "--object-path", PATH,
+                            "--method", "org.freedesktop.DBus.Properties.Get", SERVICE, "Version"],
+                           capture_output=True, text=True, timeout=3, env=_env())
+        import re as _re
+        m = _re.search(r"uint32 (\d+)", r.stdout)
+        return int(m.group(1)) if m else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def shipped_version():
+    """The version of the extension this build of Glance ships (None if not found)."""
+    import re as _re
+    import sys as _sys
+    from pathlib import Path as _P
+    roots = [_P(__file__).resolve().parents[1] / "gnome_ext"]
+    if getattr(_sys, "_MEIPASS", ""):
+        roots.append(_P(_sys._MEIPASS) / "gnome_ext")
+    for r in roots:
+        try:
+            txt = (r / "glance-cursor@glance.app" / "extension.js").read_text()
+            m = _re.search(r"get Version\(\) \{ return (\d+)", txt)
+            if m:
+                return int(m.group(1))
+        except OSError:
+            continue
+    return None
+
+
 def outdated() -> bool:
     """True when the extension is running but is an old copy: log out and back in."""
     if os.environ.get("GLANCE_NO_GNOME_BRIDGE", "") == "1":
         return False
-    return _call("GetState", timeout=3.0) is not None and not _has_capture()
+    if _call("GetState", timeout=3.0) is None:
+        return False
+    if not _has_capture():
+        return True
+    v, sv = extension_version(), shipped_version()
+    return bool(v and sv and v < sv)
 
 
 def screenshot() -> Optional[dict]:
