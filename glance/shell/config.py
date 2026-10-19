@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,6 +33,11 @@ class Config:
     anthropic_api_key: Optional[str] = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY") or None)
     openai_api_key: Optional[str] = field(default_factory=lambda: os.getenv("OPENAI_API_KEY") or None)
     google_api_key: Optional[str] = field(default_factory=lambda: os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or None)
+    # Extra Gemini keys (comma or newline separated): spread across them so one key's
+    # per-minute/daily quota doesn't stop Glance. GOOGLE_API_KEY stays the first key.
+    google_api_keys_extra: str = field(default_factory=lambda: os.getenv("GOOGLE_API_KEYS", ""))
+    groq_api_key: Optional[str] = field(default_factory=lambda: os.getenv("GROQ_API_KEY") or None)
+    openrouter_api_key: Optional[str] = field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY") or None)
     ollama_host: str = field(default_factory=lambda: os.getenv("OLLAMA_HOST", "http://localhost:11434"))
     # BYOK: any OpenAI-compatible endpoint (OpenRouter, Groq, Together, LM Studio,
     # vLLM, a self-hosted Ollama /v1, ...). The user supplies all three.
@@ -87,8 +93,12 @@ class Config:
                 return "copilot"
         except Exception:
             pass
-        if self.google_api_key:
+        if self.gemini_keys():
             return "gemini"
+        if self.groq_api_key:
+            return "groq"
+        if self.openrouter_api_key:
+            return "openrouter"
         if self.custom_ready():
             return "custom"
         # No key anywhere: Glance Cloud (if switched on), else local Ollama.
@@ -101,6 +111,27 @@ class Config:
         """Glance Cloud (the free hosted model) is paused. The code and server are
         kept; set GLANCE_CLOUD=1 to bring it back."""
         return os.getenv("GLANCE_CLOUD", "").strip().lower() in ("1", "true", "yes")
+
+    def gemini_keys(self) -> list:
+        """Every Gemini key the user added (primary first, duplicates removed)."""
+        raw = [self.google_api_key or ""] + re.split(r"[,\s]+", self.google_api_keys_extra or "")
+        seen, out = set(), []
+        for k in raw:
+            k = k.strip()
+            if k and k not in seen:
+                seen.add(k)
+                out.append(k)
+        return out
+
+    def fallback_enabled(self) -> bool:
+        return os.getenv("GLANCE_FALLBACK", "1").strip().lower() not in ("0", "false", "no")
+
+    def fallback_chain(self) -> list:
+        """Providers to try, in order: the active one, then the other configured ones."""
+        active = self.llm_provider()
+        order = ["gemini", "groq", "openrouter", "claude", "openai", "custom"]
+        rest = [p for p in order if p != active and p in self.available_llm_providers()]
+        return [active] + (rest if self.fallback_enabled() else [])
 
     def custom_ready(self) -> bool:
         return bool(self.custom_base_url and self.custom_model)
@@ -118,8 +149,12 @@ class Config:
                 out.append("copilot")
         except Exception:
             pass
-        if self.google_api_key:
+        if self.gemini_keys():
             out.append("gemini")
+        if self.groq_api_key:
+            out.append("groq")
+        if self.openrouter_api_key:
+            out.append("openrouter")
         if self.custom_ready():
             out.append("custom")
         if self.cloud_enabled():
@@ -202,6 +237,9 @@ class Config:
         self.openai_api_key = os.getenv("OPENAI_API_KEY") or None
         self.google_api_key = (os.getenv("GOOGLE_API_KEY")
                                or os.getenv("GEMINI_API_KEY") or None)
+        self.google_api_keys_extra = os.getenv("GOOGLE_API_KEYS", "")
+        self.groq_api_key = os.getenv("GROQ_API_KEY") or None
+        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY") or None
         self.custom_base_url = os.getenv("GLANCE_CUSTOM_BASE_URL", "").strip()
         self.custom_api_key = os.getenv("GLANCE_CUSTOM_API_KEY", "").strip()
         self.custom_model = os.getenv("GLANCE_CUSTOM_MODEL", "").strip()
@@ -218,6 +256,12 @@ class Config:
                 _WRITABLE_ENV.write_text("".join(kept), encoding="utf-8")
         except Exception:
             pass
+        self.google_api_key = (os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or None)
+        self.google_api_keys_extra = os.getenv("GOOGLE_API_KEYS", "")
+        self.groq_api_key = os.getenv("GROQ_API_KEY") or None
+        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY") or None
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY") or None
+        self.openai_api_key = os.getenv("OPENAI_API_KEY") or None
         self.custom_base_url = os.getenv("GLANCE_CUSTOM_BASE_URL", "").strip()
         self.custom_api_key = os.getenv("GLANCE_CUSTOM_API_KEY", "").strip()
         self.custom_model = os.getenv("GLANCE_CUSTOM_MODEL", "").strip()
@@ -268,6 +312,10 @@ class Config:
             return os.environ.get("GLANCE_FAST_MODEL", "gpt-4o-mini")
         if p == "custom":
             return os.environ.get("GLANCE_FAST_MODEL", self.custom_model)
+        if p == "groq":
+            return os.environ.get("GLANCE_FAST_MODEL", "llama-3.1-8b-instant")
+        if p == "openrouter":
+            return os.environ.get("GLANCE_FAST_MODEL", "openrouter/free")
         if p == "cloud":
             return os.environ.get("GLANCE_FAST_MODEL", "glance")
         return os.environ.get("GLANCE_FAST_MODEL", "llama3.2:3b")
@@ -290,6 +338,10 @@ class Config:
             return os.environ.get("GLANCE_VISION_MODEL", "gpt-4o-mini")
         if p == "custom":
             return os.environ.get("GLANCE_VISION_MODEL", self.custom_model)
+        if p == "groq":
+            return os.environ.get("GLANCE_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+        if p == "openrouter":
+            return os.environ.get("GLANCE_VISION_MODEL", "openrouter/free")
         if p == "cloud":
             return "glance"   # text-only tier; screenshots are not sent
         return os.environ.get("GLANCE_VISION_MODEL", self.get_ollama_model("vision"))
