@@ -637,11 +637,47 @@ class ActionsMixin:
         "code": ["code"],
         "vscode": ["code"],
         "files": ["nautilus", "thunar", "dolphin", "nemo"],
-        "terminal": ["gnome-terminal", "konsole", "xfce4-terminal", "xterm"],
-        "text editor": ["gedit", "kate", "mousepad"],
+        "terminal": ["gnome-terminal", "ptyxis", "konsole", "xfce4-terminal", "xterm"],
+        "text editor": ["gnome-text-editor", "gedit", "kate", "mousepad", "xed", "pluma"],
         "calculator": ["gnome-calculator", "kcalc"],
-        "notepad": ["gedit", "kate", "mousepad", "xed"],
+        "notepad": ["gnome-text-editor", "gedit", "kate", "mousepad", "xed", "pluma"],
+        "editor": ["gnome-text-editor", "gedit", "kate", "mousepad", "xed", "pluma"],
+        "settings": ["gnome-control-center"],
+        "browser": ["xdg-open"],
     }
+
+    @staticmethod
+    def _find_desktop_app(name: str):
+        """Linux: the .desktop entry whose Name matches `name` (e.g. "Text Editor",
+        "Brave"), so any installed app can be opened by its real name."""
+        import glob
+        import os
+        want = name.strip().lower()
+        if not want:
+            return None
+        dirs = ["/usr/share/applications", "/usr/local/share/applications",
+                os.path.expanduser("~/.local/share/applications"),
+                "/var/lib/flatpak/exports/share/applications",
+                os.path.expanduser("~/.local/share/flatpak/exports/share/applications"),
+                "/var/lib/snapd/desktop/applications"]
+        best = None
+        for d in dirs:
+            for f in glob.glob(os.path.join(d, "*.desktop")):
+                try:
+                    txt = open(f, encoding="utf-8", errors="ignore").read()
+                except OSError:
+                    continue
+                if "NoDisplay=true" in txt:
+                    continue
+                for line in txt.splitlines():
+                    if line.startswith("Name=") and not line.startswith("Name["):
+                        nm = line[5:].strip().lower()
+                        if nm == want:
+                            return os.path.basename(f)
+                        if want in nm and best is None:
+                            best = os.path.basename(f)
+                        break
+        return best
 
     @property
     def _APP_LAUNCHERS(self):
@@ -713,6 +749,16 @@ class ActionsMixin:
                     continue
                 except Exception:
                     continue
+        if _sys.platform.startswith("linux"):
+            desk = self._find_desktop_app(name)
+            if desk:
+                try:
+                    subprocess.Popen(["gtk-launch", desk], stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL, start_new_session=True)
+                    slog("ACT", f"launched '{name}' via {desk}")
+                    return
+                except Exception:
+                    pass
         if name.lower() in self._WEB_APPS:
             slog("ACT", f"'{name}' not installed locally -> web app")
             self._open_url(name)
@@ -1042,6 +1088,7 @@ class ActionsMixin:
             print("[glance-debug] generic task error:", flush=True)
             traceback.print_exc()
             self.sig_error.emit(str(e))
+            await self._reply_local("Sorry, my AI is too busy right now. Try again in a moment.")
         finally:
             self.sig_point_release.emit()
 
