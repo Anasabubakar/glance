@@ -56,8 +56,16 @@ const IFACE = `<node>
     <method name="TypeText"><arg type="s" direction="in" name="text"/></method>
     <method name="Key"><arg type="s" direction="in" name="combo"/></method>
     <method name="GetState"><arg type="s" direction="out" name="json"/></method>
+    <method name="GetWindows"><arg type="s" direction="out" name="json"/></method>
+    <method name="WindowAction">
+      <arg type="s" direction="in" name="which"/><arg type="s" direction="in" name="action"/>
+      <arg type="s" direction="out" name="json"/></method>
+    <method name="SetStopGrab"><arg type="b" direction="in" name="on"/></method>
+    <method name="SetRecording"><arg type="b" direction="in" name="on"/></method>
     <signal name="HotkeyPressed"/>
     <signal name="HotkeyReleased"/>
+    <signal name="StopPressed"/>
+    <signal name="InputEvent"><arg type="s" name="json"/></signal>
     <property name="Version" type="u" access="read"/>
   </interface>
 </node>`;
@@ -95,15 +103,27 @@ export default class GlanceCursor extends Extension {
         // Wayland cannot. The app sends the combo via SetHotkey().
         this._action = 0;
         this._held = false;
+        this._stopAction = 0;
         this._accelId = global.display.connect(
             'accelerator-activated', (_d, action) => {
                 if (action === this._action) this._hotkeyDown();
+                else if (this._stopAction && action === this._stopAction)
+                    this._dbus.emit_signal('StopPressed', null);
             });
+        // Remember the last window that is not Glance's own, so "minimize this window"
+        // means the window the user was working in, not Glance's panel.
+        this._lastFocus = null;
+        this._focusId = global.display.connect('notify::focus-window', () => this._noteFocus());
+        this._noteFocus();
     }
 
     disable() {
         this._releaseHotkey(false);
         this._ungrab();
+        this.SetStopGrab(false);
+        this.SetRecording(false);
+        if (this._focusId) global.display.disconnect(this._focusId);
+        this._focusId = 0;
         this._vptr = this._vkbd = null;
         if (this._accelId) global.display.disconnect(this._accelId);
         this._accelId = 0;
@@ -525,6 +545,146 @@ export default class GlanceCursor extends Extension {
     AddText(x, y, text, ttl) { this._motion.addAnnotation('text', [x, y, text], ttl); }
     ClearAnnotations() { this._motion.clearAnnotations(); }
 
+    // ── windows (reliable, instant window control) ───────────────────────
+    _isGlance(w) {
+        const c = (w.get_wm_class() || '').toLowerCase();
+        const a = (w.get_gtk_application_id() || '').toLowerCase();
+        return c.includes('glance') || a.includes('glance');
+    }
+
+    _noteFocus() {
+        const w = global.display.focus_window;
+        if (w && !this._isGlance(w) && w.get_window_type() === Meta.WindowType.NORMAL)
+            this._lastFocus = w;
+    }
+
+    _normalWindows() {
+        return global.get_window_actors().map(a => a.meta_window).filter(w =>
+            w && !w.is_skip_taskbar() &&
+            [Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Meta.WindowType.MODAL_DIALOG]
+                .includes(w.get_window_type()));
+    }
+
+    _isMaximized(w) {
+        try { if (typeof w.is_maximized === 'function') return w.is_maximized(); } catch (_e) { /* old API */ }
+        try { return w.get_maximized() === Meta.MaximizeFlags.BOTH; } catch (_e) { return false; }
+    }
+
+    _describe(w) {
+        const r = w.get_frame_rect();
+        const target = this._lastFocus ?? global.display.focus_window;
+        return {
+            id: w.get_id(), title: w.get_title() || '', wm_class: w.get_wm_class() || '',
+            app: w.get_gtk_application_id() || '', x: r.x, y: r.y, w: r.width, h: r.height,
+            focused: w === target, minimized: !!w.minimized, maximized: this._isMaximized(w),
+            workspace: w.get_workspace()?.index() ?? -1, glance: this._isGlance(w),
+        };
+    }
+
+    GetWindows() {
+        try { return JSON.stringify(this._normalWindows().map(w => this._describe(w))); }
+        catch (e) { return JSON.stringify([]); }
+    }
+
+    _findWindow(which) {
+        if (!which || which === 'focused') {
+            const f = this._lastFocus ?? global.display.focus_window;
+            if (f && !f.minimized) return f;
+            // nothing focused: the topmost visible normal window
+            const vis = this._normalWindows().filter(w => !w.minimized && !this._isGlance(w));
+            return vis.length ? vis[vis.length - 1] : null;
+        }
+        const ws = this._normalWindows();
+        if (which.startsWith('title:') || which.startsWith('class:')) {
+            const q = which.slice(which.indexOf(':') + 1).toLowerCase();
+            const key = which.startsWith('title:') ? w => w.get_title() : w => w.get_wm_class();
+            return ws.find(w => (key(w) || '').toLowerCase().includes(q)) ?? null;
+        }
+        const id = Number(which);
+        return ws.find(w => w.get_id() === id) ?? null;
+    }
+
+    WindowAction(which, action) {
+        try {
+            const w = this._findWindow(which);
+            if (!w) return JSON.stringify({ok: false, err: 'no such window'});
+            const before = this._describe(w);
+            switch (action) {
+            case 'minimize': w.minimize(); break;
+            case 'unminimize': w.unminimize(); break;
+            case 'maximize':
+                try { w.maximize(Meta.MaximizeFlags.BOTH); } catch (_e) { w.maximize(); } break;
+            case 'unmaximize':
+                try { w.unmaximize(Meta.MaximizeFlags.BOTH); } catch (_e) { w.unmaximize(); } break;
+            case 'fullscreen': w.make_fullscreen(); break;
+            case 'unfullscreen': w.unmake_fullscreen(); break;
+            case 'close': w.delete(global.get_current_time()); break;
+            case 'activate': Main.activateWindow(w); break;
+            default: return JSON.stringify({ok: false, err: `unknown action ${action}`});
+            }
+            return JSON.stringify({ok: true, window: before});
+        } catch (e) {
+            console.error('glance-cursor: WindowAction failed', e);
+            return JSON.stringify({ok: false, err: String(e)});
+        }
+    }
+
+    // ── stop key: Escape is only grabbed while Glance is acting ──────────
+    SetStopGrab(on) {
+        try {
+            if (on && !this._stopAction) {
+                const a = global.display.grab_accelerator('Escape', Meta.KeyBindingFlags.NONE);
+                if (a && a !== Meta.KeyBindingFlags.NONE) {
+                    this._stopAction = a;
+                    Main.wm.allowKeybinding(Meta.external_binding_name_for_action(a),
+                        Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW);
+                }
+            } else if (!on && this._stopAction) {
+                Main.wm.allowKeybinding(Meta.external_binding_name_for_action(this._stopAction),
+                    Shell.ActionMode.NONE);
+                global.display.ungrab_accelerator(this._stopAction);
+                this._stopAction = 0;
+            }
+        } catch (e) { console.error('glance-cursor: SetStopGrab failed', e); }
+    }
+
+    // ── input recording (workflow capture): every click/key the user makes ─
+    SetRecording(on) {
+        try {
+            if (on && !this._recId) {
+                this._recId = global.stage.connect('captured-event', (_a, ev) => {
+                    const t = ev.type();
+                    let o = null;
+                    if (t === Clutter.EventType.BUTTON_PRESS) {
+                        const [x, y] = ev.get_coords();
+                        o = {kind: 'click', x: Math.round(x), y: Math.round(y), button: ev.get_button()};
+                    } else if (t === Clutter.EventType.KEY_PRESS) {
+                        let ch = '';
+                        try {
+                            const u = ev.get_key_unicode();
+                            ch = typeof u === 'number' ? (u > 31 ? String.fromCodePoint(u) : '') : String(u ?? '');
+                        } catch (_e) { ch = ''; }
+                        o = {kind: 'key', key: Clutter.keyval_name(ev.get_key_symbol()) || '',
+                             char: ch, mods: ev.get_state()};
+                    } else if (t === Clutter.EventType.SCROLL) {
+                        const [x, y] = ev.get_coords();
+                        o = {kind: 'scroll', x: Math.round(x), y: Math.round(y)};
+                    }
+                    if (o) {
+                        const w = this._lastFocus ?? global.display.focus_window;
+                        o.window = w ? (w.get_title() || '') : '';
+                        o.t = Date.now();
+                        this._dbus.emit_signal('InputEvent', GLib.Variant.new('(s)', [JSON.stringify(o)]));
+                    }
+                    return Clutter.EVENT_PROPAGATE;
+                });
+            } else if (!on && this._recId) {
+                global.stage.disconnect(this._recId);
+                this._recId = 0;
+            }
+        } catch (e) { console.error('glance-cursor: SetRecording failed', e); }
+    }
+
     GetState() {
         const m = this._motion;
         const [px, py] = global.get_pointer();
@@ -536,5 +696,5 @@ export default class GlanceCursor extends Extension {
         });
     }
 
-    get Version() { return 1; }
+    get Version() { return 2; }
 }
