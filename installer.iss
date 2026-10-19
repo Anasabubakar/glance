@@ -12,7 +12,7 @@
 ; ────────────────────────────────────────────────────────────────────
 
 #define MyAppName        "Glance"
-#define MyAppVersion     "0.3.13"
+#define MyAppVersion     "0.3.14"
 #define MyAppPublisher   "Anas Abubakar"
 #define MyAppURL         "https://github.com/Anasabubakar/glance"
 #define MyAppExeName     "Glance.exe"
