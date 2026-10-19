@@ -939,9 +939,10 @@ class ActionsMixin:
                f"Screen resolution: {tw}x{th}. Coordinates are pixels from top-left.\n")
             + "Reply with exactly ONE JSON object and nothing else. The \"text\" field is a "
             "short plain-English phrase for the user (never code).\n"
-            "Prefer keyboard shortcuts when one does the job: close tab ctrl+w, close "
-            "window alt+f4, minimize window super+h, maximize super+Up, switch window "
-            "alt+Tab, new tab ctrl+t, address bar ctrl+l, save ctrl+s, copy/paste ctrl+c/ctrl+v.\n"
+            "The user is WATCHING the cursor, so do things with the mouse: click the visible "
+            "button, tab or icon (for example the minimize, maximize or close buttons in a "
+            "window's title bar). Use keys only for typing text or when nothing on screen "
+            "can be clicked.\n"
             "Only launch_app when the task is to open an app. If the task is already done, "
             "or you cannot do it, use 'done' and say so honestly.\n"
             "Work ONE action at a time. After each, you'll get a fresh screenshot.\n"
@@ -964,14 +965,21 @@ class ActionsMixin:
                     await self._say_task("Okay, stopping.")
                     break
                 full = ""
-                async for chunk in self._get_llm().stream_response(
-                    user_text=instruction if _ == 0 else "Here's the updated screenshot. Continue the task or say done.",
-                    screenshots_b64=[b64] if b64 else [],
-                    history=[],
-                    system_prompt=system,
-                    model=cfg.vision_model(),
-                ):
-                    full += chunk
+                _llm = self._get_llm()
+                _utext = instruction if _ == 0 else "Here's the updated screenshot. Continue the task or say done."
+                if hasattr(_llm, "complete"):      # Gemini: race two models, first answer wins
+                    full = await _llm.complete(
+                        user_text=_utext, screenshots_b64=[b64] if b64 else [], history=[],
+                        system_prompt=system, model=cfg.vision_model())
+                else:
+                    async for chunk in _llm.stream_response(
+                        user_text=_utext,
+                        screenshots_b64=[b64] if b64 else [],
+                        history=[],
+                        system_prompt=system,
+                        model=cfg.vision_model(),
+                    ):
+                        full += chunk
                 action = _parse_action(full)
                 if action is None:
                     await self._say_task(_speakable(full, "Sorry, I got confused and stopped."))
