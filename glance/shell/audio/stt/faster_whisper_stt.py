@@ -18,6 +18,10 @@ def _get_model():
     return _model_cache
 
 
+_PROMPT = ("Glance. Tile this window left. Minimize the terminal. Open the calculator. "
+           "Set a timer for five minutes. Volume up. Copy that. Create a routine called morning.")
+
+
 class FasterWhisperSTT(BaseSTT):
     """
     Local, offline speech-to-text using faster-whisper.
@@ -37,7 +41,21 @@ class FasterWhisperSTT(BaseSTT):
             f.write(wav_bytes)
             path = f.name
         try:
-            segments, _ = model.transcribe(path, beam_size=5, language="en")
-            return " ".join(s.text.strip() for s in segments).strip()
+            # A short, in-domain prompt makes "Glance, tile this window left" come out right
+            # instead of "Glans, tail the window laughed". It is dropped if it gets echoed.
+            segments, _ = model.transcribe(
+                path, beam_size=5, language="en", initial_prompt=_PROMPT,
+                condition_on_previous_text=False, temperature=0.0, no_speech_threshold=0.5)
+            kept = []
+            for s in segments:
+                if (s.no_speech_prob > 0.6 and s.avg_logprob < -0.7) or s.avg_logprob < -1.4:
+                    continue
+                kept.append(s.text.strip())
+            text = " ".join(kept).strip()
+            from audio.ambient_listener import collapse_repeats
+            text = collapse_repeats(text)
+            if text.lower().strip(" .") in _PROMPT.lower():       # it just repeated the prompt
+                return ""
+            return text
         finally:
             os.unlink(path)
