@@ -621,6 +621,10 @@ class ActionsMixin:
             actuator.right_click(px, py)
         elif a in ("mouse_move", "cursor_move") and px is not None:
             actuator.move(px, py)
+        elif a == "triple_click" and px is not None:
+            actuator.triple_click(px, py)
+        elif a == "middle_click" and px is not None:
+            actuator.middle_click(px, py)
         elif a in ("left_click_drag",) and px is not None:
             actuator.left_click(px, py)          # simplified: click destination
         elif a == "type" and text:
@@ -837,6 +841,54 @@ class ActionsMixin:
             t = "https://" + t
         self._launch_app(t)
 
+    def _draw_strokes(self, action: dict, to_coords, shot) -> list:
+        """Pen strokes (lists of physical-pixel points) for a draw action."""
+        import shapes
+        pw = shot.physical_width or shot.width
+        ph = shot.physical_height or shot.height
+        if action.get("strokes") or action.get("points"):
+            raw = action.get("strokes") or [action.get("points")]
+            out = []
+            for st in raw:
+                pts = [(to_coords(shot, p[0], p[1])[2], to_coords(shot, p[0], p[1])[3]) for p in st if len(p) >= 2]
+                if len(pts) >= 2:
+                    out.append(pts)
+            return out
+        kind = action.get("shape") or action.get("kind") or ""
+        _l, _l2, cx, cy = to_coords(shot, action.get("x", 500), action.get("y", 500))
+        r = float(action.get("r", 60)) / 1000.0 * pw
+        rx = float(action.get("rx", action.get("r", 60))) / 1000.0 * pw
+        ry = float(action.get("ry", action.get("r", 60))) / 1000.0 * ph
+        w = float(action.get("w", action.get("r", 60) * 2)) / 1000.0 * pw
+        h = float(action.get("h", action.get("r", 60) * 2)) / 1000.0 * ph
+        x2 = y2 = None
+        if action.get("x2") is not None and action.get("y2") is not None:
+            x2, y2 = to_coords(shot, action["x2"], action["y2"])[2:4]
+        k = str(kind).lower()
+        if k in ("rect", "rectangle", "box", "zigzag", "wave"):
+            return shapes.make(k, cx, cy, w / 2, h / 2, x2, y2)
+        if k in ("ellipse", "oval"):
+            return shapes.make(k, cx, cy, rx, ry, x2, y2)
+        return shapes.make(k, cx, cy, r, r, x2, y2)
+
+    def _annotate(self, action: dict, to_coords, shot, tw) -> None:
+        """Highlight something on the user's screen (no click): circle, arrow, underline, text."""
+        kind = str(action.get("kind", "circle")).lower()
+        lx, ly, _px, _py = to_coords(shot, action.get("x", 500), action.get("y", 500))
+        pw = shot.physical_width or shot.width
+        sc = shot.dpi_scale if shot.dpi_scale > 0 else 1.0
+        if kind == "circle":
+            self.sig_circle.emit(float(lx), float(ly), float(action.get("r", 40)) / 1000.0 * pw / sc)
+        elif kind == "arrow":
+            lx2, ly2, _a, _b = to_coords(shot, action.get("x2", action.get("x", 500)), action.get("y2", action.get("y", 500)))
+            self.sig_arrow.emit(float(lx), float(ly), float(lx2), float(ly2))
+        elif kind == "underline":
+            self.sig_underline.emit(float(lx), float(ly), float(action.get("w", 120)) / 1000.0 * pw / sc)
+        elif kind in ("text", "label"):
+            self.sig_label.emit(float(lx), float(ly), str(action.get("content") or action.get("text") or ""))
+        self.sig_point_at.emit(float(lx), float(ly), action.get("text", ""))
+        time.sleep(0.8)
+
     def _set_stop_grab(self, on: bool) -> None:
         try:
             if sys.platform.startswith("linux"):
@@ -854,7 +906,13 @@ class ActionsMixin:
                 return True
         except Exception:
             pass
-        what = f"{label} {action.get('content', '')}"
+        act = str(action.get("action", "")).lower()
+        if act in ("annotate", "hover", "mouse_move", "draw", "drag", "scroll"):
+            return True                        # these can't send, delete, pay or post
+        # Typing is only risky when it submits (ends with Enter); "don't send it yet" is not a command.
+        content = str(action.get("content") or "")
+        what = label if act != "type" else (label if content.endswith("\n") else "")
+        what = re.sub(r"\b(?:don't|dont|do not|never|not|without|but not|before)\b[^.,;]{0,30}", " ", what or "", flags=re.I)
         if not _RISKY.search(what):
             return True
         return self.confirm_blocking(label or "do this")
@@ -909,6 +967,31 @@ class ActionsMixin:
             self._open_url(cmd.arg)
             await self._reply_local(cmd.say or "Opening it.")
             return True
+        if k == "draw":
+            try:
+                import shapes
+                actuator = self._get_actuator()
+                cx, cy, size, sc = 640.0, 400.0, 120.0, 1.0
+                if linux:
+                    from screen import gnome_bridge as _gb
+                    if _gb.available() and _gb.supports_windows():
+                        w = self._pick_window(_gb.windows(), "")
+                        if w:
+                            cx, cy = w["x"] + w["w"] / 2, w["y"] + w["h"] / 2 + 20
+                            size = max(60.0, min(w["w"], w["h"]) * 0.28)
+                    sc = getattr(_gb, "last_scale", 1.0) or 1.0
+                strokes = shapes.make(cmd.arg, cx * sc, cy * sc, size * sc, size * sc)
+                if not strokes:
+                    return False
+                self.sig_point_at.emit(float(cx), float(cy), cmd.say or "Drawing")
+                time.sleep(0.9)
+                actuator.draw(strokes)
+                self.sig_point_release.emit()
+                await self._reply_local("Done.")
+                return True
+            except Exception as _e:
+                slog("ERROR", f"draw failed: {type(_e).__name__}: {_e}")
+                return False
         if k == "lock" and linux:
             _sp.Popen(["loginctl", "lock-session"])
             return True
@@ -1152,6 +1235,15 @@ class ActionsMixin:
             '  {"action":"type","content":"hello world","text":"typing greeting"}\n'
             '  {"action":"key","content":"ctrl+s","text":"saving"}\n'
             '  {"action":"scroll","x":123,"y":456,"direction":"down","text":"scrolling"}\n'
+            '  {"action":"triple_click","x":123,"y":456,"text":"selecting the line"}  (also middle_click, hover)\n'
+            '  {"action":"click","x":123,"y":456,"modifiers":"ctrl","text":"ctrl-clicking"}  (modifiers: ctrl, shift, alt)\n'
+            '  {"action":"drag","from":[100,200],"to":[600,200],"text":"dragging the file into the folder"}  (drag and drop, select text, resize, move)\n'
+            '  {"action":"draw","shape":"circle","x":500,"y":500,"r":80,"text":"drawing a circle"}  '
+            '(shapes: circle ellipse rect square triangle star heart spiral smiley zigzag wave; use "w","h" for rect/zigzag/wave; '
+            '"line"/"arrow" take "x","y" to "x2","y2"). For anything else draw freehand with '
+            '"strokes":[[[x,y],[x,y],...],...] (several pen strokes). Draw only inside a canvas or drawing area.\n'
+            '  {"action":"annotate","kind":"circle","x":500,"y":500,"r":50,"text":"here"}  (highlight on the user\'s screen without clicking: '
+            'kinds circle, arrow (x,y to x2,y2), underline (x,y,w), text (x,y,"content"))\n'
             '  {"action":"launch_app","name":"notepad","text":"opening notepad"}\n'
             '  {"action":"open_url","target":"gmail","text":"opening email"}\n'
             '  {"action":"sequence","steps":[{"action":"key","content":"ctrl+t"},{"action":"type","content":"hello"}]}  '
@@ -1232,6 +1324,41 @@ class ActionsMixin:
                 if act == "done":
                     await self._say_task(label or "Done.")
                     break
+                elif act in ("triple_click", "middle_click", "hover", "mouse_move"):
+                    x, y = int(action.get("x", 0)), int(action.get("y", 0))
+                    lx, ly, px, py = to_coords(shot, x, y)
+                    self.sig_point_at.emit(float(lx), float(ly), label)
+                    self._exec_action(actuator, "mouse_move" if act in ("hover", "mouse_move") else act,
+                                      px, py, "")
+                elif act in ("click", "left_click") and action.get("modifiers"):
+                    x, y = int(action.get("x", 0)), int(action.get("y", 0))
+                    lx, ly, px, py = to_coords(shot, x, y)
+                    self.sig_point_at.emit(float(lx), float(ly), label)
+                    time.sleep(1.0)
+                    slog("ACT", f"click with {action.get('modifiers')} @ ({px},{py})")
+                    actuator.click_with(px, py, str(action.get("modifiers")))
+                elif act == "drag":
+                    f = action.get("from") or [action.get("x", 0), action.get("y", 0)]
+                    t = action.get("to") or [action.get("x2", 0), action.get("y2", 0)]
+                    alx, aly, apx, apy = to_coords(shot, f[0], f[1])
+                    _blx, _bly, bpx, bpy = to_coords(shot, t[0], t[1])
+                    self.sig_point_at.emit(float(alx), float(aly), label or "Dragging")
+                    time.sleep(1.0)
+                    slog("ACT", f"drag ({apx},{apy}) -> ({bpx},{bpy})")
+                    actuator.drag(apx, apy, bpx, bpy)
+                elif act == "draw":
+                    strokes = self._draw_strokes(action, to_coords, shot)
+                    if not strokes:
+                        await self._say_task("I couldn't work out what to draw.")
+                        break
+                    fx, fy = strokes[0][0]
+                    sc = shot.dpi_scale if shot.dpi_scale > 0 else 1.0
+                    self.sig_point_at.emit(float(fx) / sc, float(fy) / sc, label or "Drawing")
+                    time.sleep(1.0)
+                    slog("ACT", f"draw {action.get('shape', 'freehand')} ({len(strokes)} stroke(s))")
+                    actuator.draw(strokes)
+                elif act == "annotate":
+                    self._annotate(action, to_coords, shot, tw)
                 elif act == "sequence":
                     # several keyboard/typing/launch steps with no clicks: run them back to back
                     for st in (action.get("steps") or [])[:8]:

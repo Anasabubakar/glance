@@ -44,3 +44,14 @@ def test_not_local_when_complex_or_conversational():
     assert parse("open the projects folder") is None
     assert parse("what is on my screen") is None
     assert parse("click on the home button") is None
+
+
+def test_drawing_and_new_verbs_route_to_actions():
+    assert k("draw a circle") == ("draw", "circle", "")
+    assert k("sketch a heart") == ("draw", "heart", "")
+    assert parse("draw a circle around the save button") is None     # needs the screen: AI path
+    from routing import RoutingMixin
+    r = RoutingMixin()
+    for t in ("draw a star in the canvas", "circle the save button", "drag the file to the trash",
+              "highlight the search bar", "could you underline the title"):
+        assert r._local_route(t)["route"] == "act", t

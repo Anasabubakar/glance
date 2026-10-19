@@ -111,10 +111,12 @@ class RoutingMixin:
     _ACT_RX = re.compile(
         r"\b(could|can|would|will|should)\s+you\s+(please\s+)?(click|tap|press|type|scroll|open|"
         r"launch|close|go\s+to|search|play|send|select|drag|navigate|minimi[sz]e|maximi[sz]e|"
-        r"switch|copy|paste|save|refresh|reload|enter|fill|write|delete|zoom)\b"
+        r"switch|copy|paste|save|refresh|reload|enter|fill|write|delete|zoom|draw|sketch|doodle|"
+        r"circle|highlight|underline|annotate|outline|scribble|trace|hover|resize|move)\b"
         r"|\b(click|tap|double.?click|right.?click)\s+(on|the|that|it|this)\b"
         r"|^(please\s+)?(open|launch|click|tap|press|type|scroll|close|go\s+to|search|play|"
-        r"send|select|navigate|start|switch|minimi[sz]e|maximi[sz]e)\b")
+        r"send|select|navigate|start|switch|minimi[sz]e|maximi[sz]e|draw|sketch|doodle|drag|circle|"
+        r"highlight|underline|annotate|outline|scribble|trace|hover|resize|move|write|paint)\b")
     _LLM_RX = re.compile(
         r"\b(remember|forget|from now on|whenever i say|routine|skill|research|in the "
         r"background|undo|revert|clean ?up|tidy|organi[sz]e|email|gmail|calendar)\b")

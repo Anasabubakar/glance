@@ -136,6 +136,13 @@ def parse(text: str):
         return Command("url", "https://www.google.com/search?q=" + quote_plus(m.group("q")),
                        say=f"Searching for {m.group('q')}.")
 
+    # drawing a shape in the window you are using: "draw a circle", "sketch a heart"
+    m = re.match(r"(?:draw|sketch|doodle|paint|make)\s+(?:me\s+)?(?:a|an|some)?\s*(?P<s>circle|star|heart|square|"
+                 r"triangle|spiral|smiley(?: face)?|rectangle|zigzag|wave)s?$", low)
+    if m:
+        shape = m.group("s").replace(" face", "")
+        return Command("draw", shape, say=f"Drawing a {shape}.")
+
     # facts we know instantly
     if re.match(r"what(?:'s| is) the time|what time is it|tell me the time|current time$", low):
         return Command("answer", "time")
