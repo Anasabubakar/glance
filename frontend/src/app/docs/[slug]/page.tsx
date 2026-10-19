@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-14" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.14 — Many keys, more providers</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Add several Gemini keys; requests are spread across them and a key at its limit is skipped</li>
+        <li>• Groq and OpenRouter support, with free models listed on the Models page</li>
+        <li>• Automatic fallback to your other providers when the chosen one is busy or out of quota</li>
+      </ul>
+
       <h2 id="v0-3-13" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.13 — Fast, visible actions</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
