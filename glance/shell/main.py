@@ -74,6 +74,7 @@ def main(launcher_window=None):
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("Glance")
     app.setApplicationDisplayName("Glance - AI Companion")
+    app.setDesktopFileName("glance")   # Wayland app id = glance.desktop, so the dock shows the Glance icon
 
     # ── Core components ───────────────────────────────────────────────────────
     manager = CompanionManager()

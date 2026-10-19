@@ -25,6 +25,7 @@ def show_launcher() -> int:
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("Glance")
     app.setApplicationDisplayName("Glance")
+    app.setDesktopFileName("glance")   # Wayland app id = glance.desktop, so the dock shows the Glance icon
     app.setApplicationVersion("1.0.0")
 
     # Set app-wide icon
