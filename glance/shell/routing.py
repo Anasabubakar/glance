@@ -59,9 +59,12 @@ class RoutingMixin:
         if not s:
             return None
         try:
+            import automation
+            if automation.understands(s):
+                return "act"                 # an automation handles it: instant, no AI
             from localcmd import parse as _parse_local
             if _parse_local(s) is not None:
-                return "act"                 # an everyday command: do it instantly
+                return "act"
         except Exception:
             pass
         # Explicit "do it" trigger (Glance's "…agent" pattern): a lead word that

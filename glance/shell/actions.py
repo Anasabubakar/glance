@@ -1180,6 +1180,19 @@ class ActionsMixin:
           • OpenAI → Responses API with computer_use_preview
           • Others → text-based tool-call fallback
         Safety: prompt-level + step cap + Esc-to-stop."""
+        # Automations first: fast, exact, no AI (windows, apps, system, web, files, shortcuts,
+        # math, routines, timers...). Only requests they can't fully handle go to the AI.
+        try:
+            import automation
+            _res = await asyncio.get_running_loop().run_in_executor(
+                None, automation.handle, automation.Ctx(self), instruction)
+            if _res is not None:
+                slog("ACT", f"automation handled: {instruction[:60]!r} -> ok={_res.ok}")
+                if _res.say:
+                    await self._reply_local(_res.say)
+                return
+        except Exception as _e:
+            slog("ERROR", f"automation failed: {type(_e).__name__}: {_e}")
         # Everyday commands (windows, apps, volume, keys, time) are done instantly, no AI.
         try:
             from localcmd import parse as _parse_local

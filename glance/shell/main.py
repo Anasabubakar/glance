@@ -107,6 +107,16 @@ def main(launcher_window=None):
     manager.sig_point_hold.connect(overlay.set_point_hold)
     manager.sig_point_release.connect(overlay.release_point)
 
+    # Timers, reminders and scheduled routines (survive restarts).
+    try:
+        import automation
+        from automation import routines as _routines, scheduler as _scheduler
+        _scheduler.start(_routines.fire(
+            lambda: automation.Ctx(manager),
+            lambda msg: manager._submit(manager._reply_local(msg))))
+    except Exception as _e:
+        print(f"[glance] scheduler unavailable: {type(_e).__name__}: {_e}", flush=True)
+
     # Measure which Gemini models click accurately (a few dozen cheap calls, in the
     # background, at most every two weeks). The result steers which model Glance uses.
     def _calibrate_later():
