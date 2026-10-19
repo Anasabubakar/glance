@@ -90,28 +90,45 @@ class FallbackProvider(BaseLLMProvider):
         self._log(f"[glance] {entry[0]} failed ({type(exc).__name__}); "
                   + (f"trying {nxt[0]}" if nxt else "no fallback left"))
 
+    TOTAL_BUDGET = 28.0          # the whole chain gives up after this many seconds
+    FIRST_TOKEN = 10.0           # a provider that has not started answering by then is skipped
+
     async def stream_response(self, user_text: str, screenshots_b64: List[str],
                               history: List[Message], system_prompt: str,
                               model: str | None = None) -> AsyncIterator[str]:
+        import asyncio
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self.TOTAL_BUDGET
         entries = self._entries()
         last: Exception | None = None
         for i, e in enumerate(entries):
-            started = False
+            left = deadline - loop.time()
+            if left < 2.5:
+                break
+            m = model if e[0] == self._names[0] else None
             try:
                 prov = self._get(*e)
-                async for chunk in prov.stream_response(
-                        user_text, screenshots_b64, history, system_prompt,
-                        model if e[0] == self._names[0] else None):
-                    started = True
+                if e[0] == "gemini" and hasattr(prov, "complete"):
+                    # Race the two best Gemini models and take the first full answer: steadier
+                    # than streaming from one model that may be slow or overloaded.
+                    text = await asyncio.wait_for(
+                        prov.complete(user_text, screenshots_b64, history, system_prompt, m,
+                                      budget=min(18.0, left - 1.0), max_tokens=1024),
+                        timeout=left)
+                    yield text
+                    return
+                it = prov.stream_response(user_text, screenshots_b64, history, system_prompt, m).__aiter__()
+                first = await asyncio.wait_for(it.__anext__(), timeout=min(self.FIRST_TOKEN, left))
+                yield first
+                async for chunk in it:
                     yield chunk
                 return
+            except StopAsyncIteration:
+                return
             except Exception as exc:
-                if started:
-                    raise                      # never splice two models into one reply
                 last = exc
                 self._failed(e, exc, entries[i + 1] if i + 1 < len(entries) else None)
-        if last:
-            raise last
+        raise last or RuntimeError("Every AI provider is busy right now. Try again in a moment.")
 
     async def complete(self, user_text: str, screenshots_b64: List[str], history: List[Message],
                        system_prompt: str, model: str | None = None) -> str:

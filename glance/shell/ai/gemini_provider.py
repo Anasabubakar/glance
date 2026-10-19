@@ -338,7 +338,7 @@ class GeminiProvider(BaseLLMProvider):
 
     async def complete(self, user_text: str, screenshots_b64: List[str], history: List[Message],
                        system_prompt: str, model: str | None = None,
-                       race: int = 2, budget: float = 40.0) -> str:
+                       race: int = 2, budget: float = 40.0, max_tokens: int = 512) -> str:
         """One full answer, as fast as possible: the best `race` healthy models are asked
         AT THE SAME TIME and the first good answer wins (the rest are cancelled). Free and
         preview Gemini models take 3-20 s at random, so the quickest of two is far steadier
@@ -353,7 +353,7 @@ class GeminiProvider(BaseLLMProvider):
         vision = bool(screenshots_b64)
         body = {"contents": contents,
                 "systemInstruction": {"parts": [{"text": system_prompt}]},
-                "generationConfig": {"maxOutputTokens": 512, "temperature": 0.2,
+                "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.2,
                                      "thinkingConfig": ({"thinkingLevel": "low"} if vision
                                                         else {"thinkingBudget": 0})}}
         loop = asyncio.get_running_loop()
