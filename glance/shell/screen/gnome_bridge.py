@@ -89,6 +89,37 @@ def _has_capture() -> bool:
     return _capable
 
 
+def windows() -> list:
+    """Open normal windows (id, title, wm_class, frame rect, focused, minimized...)."""
+    out = _call("GetWindows", timeout=3.0)
+    if not out:
+        return []
+    try:
+        return json.loads(ast.literal_eval(out.strip())[0])
+    except (ValueError, SyntaxError, IndexError, TypeError):
+        return []
+
+
+def window_action(which: str, action: str) -> Optional[dict]:
+    """minimize / maximize / unmaximize / close / activate / fullscreen on one window.
+    `which` is "focused", a window id, "title:<text>" or "class:<text>"."""
+    out = _call("WindowAction", _q(which), _q(action), timeout=5.0)
+    if not out:
+        return None
+    try:
+        return json.loads(ast.literal_eval(out.strip())[0])
+    except (ValueError, SyntaxError, IndexError, TypeError):
+        return None
+
+
+def set_stop_grab(on: bool) -> None:
+    _call("SetStopGrab", "true" if on else "false", timeout=3.0)
+
+
+def set_recording(on: bool) -> None:
+    _call("SetRecording", "true" if on else "false", timeout=3.0)
+
+
 def state() -> Optional[dict]:
     """The overlay's live state: {pointer:{x,y}, pos:{x,y}, stage:{w,h}, ...}."""
     out = _call("GetState", timeout=2.0)
@@ -98,6 +129,24 @@ def state() -> Optional[dict]:
         return json.loads(ast.literal_eval(out.strip())[0])
     except (ValueError, SyntaxError, IndexError, TypeError):
         return None
+
+
+_win_ok = False
+
+
+def supports_windows() -> bool:
+    """False right after an update: the extension still loaded in the session may predate
+    the window API (GetWindows), which only a fresh login picks up."""
+    global _win_ok
+    if _win_ok:
+        return True
+    try:
+        r = subprocess.run(["gdbus", "introspect", "--session", "--dest", SERVICE,
+                            "--object-path", PATH], capture_output=True, text=True, timeout=4, env=_env())
+        _win_ok = "GetWindows(" in r.stdout
+    except (OSError, subprocess.TimeoutExpired):
+        _win_ok = False
+    return _win_ok
 
 
 def outdated() -> bool:

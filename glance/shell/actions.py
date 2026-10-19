@@ -49,6 +49,29 @@ def _parse_action(full: str):
     return None
 
 
+_RISKY = re.compile(
+    r"\b(delete|remove|erase|discard|send|submit|post|publish|tweet|pay|purchase|buy|order|"
+    r"checkout|check out|transfer|withdraw|uninstall|format|empty (?:the )?trash|sign out|log ?out|"
+    r"unsubscribe|reply all)\b", re.I)
+
+
+def _screen_changed(a_b64: str, b_b64: str, threshold: float = 1.2) -> bool:
+    """Did the screen visibly change between two screenshots? (cheap 64x36 grey diff)"""
+    if not a_b64 or not b_b64:
+        return True
+    try:
+        import base64
+        import io
+        from PIL import Image, ImageChops, ImageStat
+
+        def small(b):
+            return Image.open(io.BytesIO(base64.b64decode(b))).convert("L").resize((64, 36))
+        diff = ImageChops.difference(small(a_b64), small(b_b64))
+        return ImageStat.Stat(diff).mean[0] > threshold
+    except Exception:
+        return True
+
+
 def _speakable(text: str, fallback: str = "Sorry, I couldn't finish that.") -> str:
     """Never read code aloud: JSON or tool-call text becomes its plain-English label."""
     t = (text or "").strip()
@@ -726,7 +749,7 @@ class ActionsMixin:
                     try:
                         os.startfile(cand)
                         slog("ACT", f"launched '{name}' via {cand}")
-                        return
+                        return True
                     except Exception:
                         continue
                 parts = [os.path.expandvars(p) for p in cand.split("|")]
@@ -734,7 +757,7 @@ class ActionsMixin:
                     try:
                         subprocess.Popen(parts)
                         slog("ACT", f"launched '{name}' via {parts[0]}")
-                        return
+                        return True
                     except Exception:
                         continue
             else:
@@ -744,7 +767,7 @@ class ActionsMixin:
                         start_new_session=True,
                     )
                     slog("ACT", f"launched '{name}' via {cand}")
-                    return
+                    return True
                 except FileNotFoundError:
                     continue
                 except Exception:
@@ -756,13 +779,13 @@ class ActionsMixin:
                     subprocess.Popen(["gtk-launch", desk], stdout=subprocess.DEVNULL,
                                      stderr=subprocess.DEVNULL, start_new_session=True)
                     slog("ACT", f"launched '{name}' via {desk}")
-                    return
+                    return True
                 except Exception:
                     pass
         if name.lower() in self._WEB_APPS:
             slog("ACT", f"'{name}' not installed locally -> web app")
             self._open_url(name)
-            return
+            return True
         if _sys.platform == "win32":
             try:
                 subprocess.Popen(["cmd", "/c", "start", "", name],
@@ -772,15 +795,21 @@ class ActionsMixin:
                     os.startfile(name)
                 except Exception as e:
                     print("[glance-debug] launch error:", e, flush=True)
+                    return False
+            return True
         else:
+            if "://" not in name and not name.startswith("/"):
+                return False                 # not an app we know and not a URL/path
             try:
                 subprocess.Popen(
                     ["xdg-open", name],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     start_new_session=True,
                 )
+                return True
             except Exception as e:
                 print("[glance-debug] launch error:", e, flush=True)
+                return False
 
     # Common web apps → their URL, so "check my email" opens the real logged-in
     # web app in the user's browser (no OAuth, no API — Glance reads/acts with its
@@ -808,6 +837,145 @@ class ActionsMixin:
             t = "https://" + t
         self._launch_app(t)
 
+    def _set_stop_grab(self, on: bool) -> None:
+        try:
+            if sys.platform.startswith("linux"):
+                from screen import gnome_bridge
+                if gnome_bridge.available():
+                    gnome_bridge.set_stop_grab(on)
+        except Exception:
+            pass
+
+    def _confirm_risky(self, action: dict, label: str) -> bool:
+        """Ask the user before a step that sends, deletes, pays or posts. True = go ahead."""
+        try:
+            import prefs
+            if not prefs.get("GLANCE_CONFIRM_RISKY"):
+                return True
+        except Exception:
+            pass
+        what = f"{label} {action.get('content', '')}"
+        if not _RISKY.search(what):
+            return True
+        return self.confirm_blocking(label or "do this")
+
+    # ── instant local commands (no AI): see localcmd.py ───────────────────────
+    _APP_HINTS = {
+        "browser": ("brave", "chrome", "chromium", "firefox", "edge", "vivaldi", "opera", "zen"),
+        "web browser": ("brave", "chrome", "chromium", "firefox", "edge"),
+        "terminal": ("terminal", "ptyxis", "konsole", "xterm", "kitty", "alacritty"),
+        "files": ("nautilus", "files", "dolphin", "nemo", "thunar"),
+        "file manager": ("nautilus", "files", "dolphin", "nemo", "thunar"),
+        "editor": ("texteditor", "gedit", "kate", "code", "sublime", "text editor"),
+        "text editor": ("texteditor", "gedit", "kate", "text editor"),
+        "notepad": ("texteditor", "gedit", "kate", "text editor"),
+        "code": ("code", "vscode"), "calculator": ("calculator",), "settings": ("control-center", "settings"),
+    }
+
+    def _pick_window(self, wins: list, target: str):
+        """The window the user means: by name/app, else the one they were just using."""
+        wins = [w for w in wins if not w.get("glance")]
+        if not target:
+            return next((w for w in wins if w.get("focused")), None) or (wins[-1] if wins else None)
+        t = target.lower()
+        keys = self._APP_HINTS.get(t, (t,))
+        for w in reversed(wins):
+            hay = f"{w.get('title', '')} {w.get('wm_class', '')} {w.get('app', '')}".lower()
+            if any(k in hay for k in keys):
+                return w
+        return None
+
+    async def _run_local_command(self, cmd) -> bool:
+        """Do an everyday command instantly. True = handled; False = let the AI do it."""
+        import subprocess as _sp
+        import sys as _sys
+        k = cmd.kind
+        slog("ACT", f"local command: {k} {cmd.arg} {cmd.target}".strip())
+        linux = _sys.platform.startswith("linux")
+        if k == "answer":
+            import datetime as _dt
+            now = _dt.datetime.now()
+            await self._reply_local(now.strftime("It's %I:%M %p.").replace(" 0", " ") if cmd.arg == "time"
+                                    else now.strftime("It's %A, %B %d.").replace(" 0", " "))
+            return True
+        if k == "open_app":
+            self._caption(f"Opening {cmd.arg}", hold=0.5)
+            if self._launch_app(cmd.arg):
+                await self._reply_local(cmd.say or "Opening it.")
+                return True
+            return False
+        if k == "url":
+            self._caption("Opening the page", hold=0.5)
+            self._open_url(cmd.arg)
+            await self._reply_local(cmd.say or "Opening it.")
+            return True
+        if k == "lock" and linux:
+            _sp.Popen(["loginctl", "lock-session"])
+            return True
+        if k == "volume" and linux:
+            sink = "@DEFAULT_AUDIO_SINK@"
+            args = {"up": ["set-volume", "-l", "1.0", sink, f"{cmd.n}%+"],
+                    "down": ["set-volume", sink, f"{cmd.n}%-"],
+                    "mute": ["set-mute", sink, "1"], "unmute": ["set-mute", sink, "0"],
+                    "set": ["set-volume", "-l", "1.0", sink, f"{cmd.n}%"]}[cmd.arg]
+            try:
+                self._caption(cmd.say or "Volume", hold=0.5)
+                _sp.run(["wpctl", *args], timeout=4, capture_output=True)
+                return True
+            except Exception:
+                return False
+        if k in ("key", "type", "scroll"):
+            try:
+                actuator = self._get_actuator()
+            except Exception:
+                return False
+            if k == "key":
+                self._caption(cmd.say.rstrip(".") or f"Pressing {cmd.arg}", hold=0.5)
+                self._exec_action(actuator, "key", None, None, cmd.arg)
+            elif k == "type":
+                self._exec_action(actuator, "type", None, None, cmd.arg)
+            else:
+                from screen import gnome_bridge as _gb
+                st = _gb.state() if linux else None
+                cx = int((st or {}).get("stage", {}).get("w", 1280) / 2)
+                cy = int((st or {}).get("stage", {}).get("h", 720) / 2)
+                actuator.scroll(cx, cy, cmd.n if cmd.arg == "up" else -cmd.n)
+            return True
+        if k in ("window", "activate") and linux:
+            from screen import gnome_bridge as gb
+            if not gb.available() or not gb.supports_windows():
+                return False                      # old extension still loaded: use the AI path
+            wins = gb.windows()
+            w = self._pick_window(wins, cmd.target)
+            if w is None:
+                if k == "activate":                  # not open yet: open it instead
+                    if self._launch_app(cmd.target):
+                        await self._reply_local(f"Opening {cmd.target}.")
+                        return True
+                    return False
+                await self._reply_local(f"I can't find a {cmd.target or 'window'} to " + (cmd.arg or "use") + ".")
+                return True
+            act = "activate" if k == "activate" else cmd.arg
+            title = (w.get("title") or w.get("wm_class") or "the window")[:40]
+            verb = {"minimize": "Minimizing", "maximize": "Maximizing", "unmaximize": "Restoring",
+                    "close": "Closing", "fullscreen": "Going full screen", "activate": "Switching to"}[act]
+            # Show where the control is: the cursor flies to the title bar's button area first.
+            off = {"minimize": 100, "maximize": 62, "unmaximize": 62, "fullscreen": 62,
+                   "close": 26, "activate": 160}.get(act, 62)
+            bx = w["x"] + w["w"] - off if act != "activate" else w["x"] + w["w"] // 2
+            by = w["y"] + 20
+            self.sig_point_at.emit(float(bx), float(by), f"{verb} {title}")
+            time.sleep(0.9)
+            res = gb.window_action(str(w["id"]), act)
+            self.sig_point_release.emit()
+            if not (res and res.get("ok")):
+                return False
+            await self._reply_local({"minimize": "Minimized.", "maximize": "Maximized.",
+                                     "unmaximize": "Restored.", "close": "Closed.",
+                                     "fullscreen": "Full screen.", "activate": "Switched."}[act])
+            return True
+        return False
+
     async def _say_task(self, text):
         """Speak a short closing line during a computer-use task."""
         text = (text or "").strip()
@@ -834,6 +1002,14 @@ class ActionsMixin:
           • OpenAI → Responses API with computer_use_preview
           • Others → text-based tool-call fallback
         Safety: prompt-level + step cap + Esc-to-stop."""
+        # Everyday commands (windows, apps, volume, keys, time) are done instantly, no AI.
+        try:
+            from localcmd import parse as _parse_local
+            _cmd = _parse_local(instruction)
+            if _cmd is not None and await self._run_local_command(_cmd):
+                return
+        except Exception as _e:                      # never let a parser bug block the request
+            slog("ERROR", f"local command failed: {type(_e).__name__}: {_e}")
         # Trivial requests are handled deterministically, with no model involved.
         from fastpath import find_folder, parse_open_folder
         parsed = parse_open_folder(instruction)
@@ -978,6 +1154,8 @@ class ActionsMixin:
             '  {"action":"scroll","x":123,"y":456,"direction":"down","text":"scrolling"}\n'
             '  {"action":"launch_app","name":"notepad","text":"opening notepad"}\n'
             '  {"action":"open_url","target":"gmail","text":"opening email"}\n'
+            '  {"action":"sequence","steps":[{"action":"key","content":"ctrl+t"},{"action":"type","content":"hello"}]}  '
+            '(only keys, typing, launch_app, open_url, wait: several at once, no clicks)\n'
             '  {"action":"done","text":"All done — enjoy!"}\n\n'
             + ("Coordinates use a normalized 1000x1000 grid over the whole screenshot: "
                "x=0 is the left edge, x=1000 the right edge, y=0 the top, y=1000 the "
@@ -1005,6 +1183,9 @@ class ActionsMixin:
         self._caption(f"On it: {instruction.strip()[:60]}", hold=0)   # acknowledge at once
         MAX_STEPS = 8
         recent: list = []
+        unchanged = 0
+        note = ""
+        self._set_stop_grab(True)           # Esc stops Glance while it is working
         try:
             for _ in range(MAX_STEPS):
                 if self._cancel_flag:
@@ -1012,7 +1193,10 @@ class ActionsMixin:
                     break
                 full = ""
                 _llm = self._get_llm()
-                _utext = instruction if _ == 0 else "Here's the updated screenshot. Continue the task or say done."
+                _utext = instruction if _ == 0 else (
+                    (note + " " if note else "") +
+                    "Here's the updated screenshot. Continue the task or say done.")
+                note = ""
                 if hasattr(_llm, "complete"):      # Gemini: race two models, first answer wins
                     full = await _llm.complete(
                         user_text=_utext, screenshots_b64=[b64] if b64 else [], history=[],
@@ -1041,10 +1225,32 @@ class ActionsMixin:
                 act = (action.get("action") or "").lower()
                 label = action.get("text", "")
                 self._step_label = label
+                if act != "done" and not self._confirm_risky(action, label):
+                    await self._say_task("Okay, I won't do that.")
+                    break
 
                 if act == "done":
                     await self._say_task(label or "Done.")
                     break
+                elif act == "sequence":
+                    # several keyboard/typing/launch steps with no clicks: run them back to back
+                    for st in (action.get("steps") or [])[:8]:
+                        sa = str(st.get("action", "")).lower()
+                        self._step_label = st.get("text", "")
+                        if sa == "key":
+                            self._exec_action(actuator, "key", None, None, st.get("content", ""))
+                        elif sa == "type":
+                            self._exec_action(actuator, "type", None, None, st.get("content", ""))
+                        elif sa == "launch_app":
+                            self._caption(st.get("text") or f"Opening {st.get('name', '')}", hold=0.4)
+                            self._launch_app(st.get("name", ""))
+                            await asyncio.sleep(1.2)
+                        elif sa == "open_url":
+                            self._open_url(st.get("target", ""))
+                            await asyncio.sleep(1.8)
+                        elif sa == "wait":
+                            await asyncio.sleep(min(float(st.get("seconds", 1)), 3.0))
+                        await asyncio.sleep(0.25)
                 elif act == "launch_app":
                     self._caption(label or f"Opening {action.get('name', '')}")
                     self._launch_app(action.get("name", ""))
@@ -1080,9 +1286,21 @@ class ActionsMixin:
 
                 opened_url = act == "open_url"
                 await asyncio.sleep(1.8 if opened_url else 0.8)
+                _prev = b64
                 shot, b64 = grab()
                 if shot is None:
                     break
+                # Verify: a click/key that changed nothing did not work. Tell the model,
+                # and stop honestly rather than repeating it.
+                if act in ("click", "left_click", "double_click", "right_click", "key", "scroll") \
+                        and not _screen_changed(_prev, b64):
+                    unchanged += 1
+                    note = "The screen did NOT change after your last action, so it did not work. Try a different target or approach, or say done if you cannot."
+                    if unchanged >= 2:
+                        await self._say_task("That didn't seem to work, so I'll stop here.")
+                        break
+                else:
+                    unchanged = 0
         except Exception as e:
             import traceback
             print("[glance-debug] generic task error:", flush=True)
@@ -1090,6 +1308,7 @@ class ActionsMixin:
             self.sig_error.emit(str(e))
             await self._reply_local("Sorry, my AI is too busy right now. Try again in a moment.")
         finally:
+            self._set_stop_grab(False)
             self.sig_point_release.emit()
 
     async def _run_task_openai(self, instruction: str):

@@ -287,6 +287,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
     sig_audio_level         = pyqtSignal(float)
     sig_point_at            = pyqtSignal(float, float, str)
     sig_point_hold          = pyqtSignal(bool)            # True → dwell forever until release
+    sig_confirm             = pyqtSignal(str)             # ask the user: allow this step?
     sig_point_release       = pyqtSignal()                # end dwell + fly buddy back
     sig_error               = pyqtSignal(str)
     sig_copilot_models_done = pyqtSignal(int)             # arg = model count
@@ -1316,6 +1317,21 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
             # Don't reset to IDLE if a barge-in already started a newer turn.
             if getattr(self, "_gen", 0) == gen:
                 self._emit_state(AppState.IDLE)
+
+    def confirm_blocking(self, what: str, timeout: float = 25.0) -> bool:
+        """Block the task thread until the user answers the Allow/Stop prompt (or it times out)."""
+        import threading
+        self._confirm_result = False
+        self._confirm_event = threading.Event()
+        self.sig_confirm.emit(what)
+        self._confirm_event.wait(timeout)
+        return bool(self._confirm_result)
+
+    def confirm_answer(self, allow: bool) -> None:
+        self._confirm_result = bool(allow)
+        ev = getattr(self, "_confirm_event", None)
+        if ev:
+            ev.set()
 
     async def _reply_local(self, msg: str):
         """Show + speak a message that doesn't need an LLM round-trip."""

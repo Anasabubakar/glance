@@ -40,6 +40,8 @@ PREFS = [
          "Use text recognition on the screen when a vision model isn't available.", True, "Assistance"),
     Pref("GLANCE_SLOW_MODE", "Teacher pace",
          "Slower, more deliberate pointing and pauses. Good for learning.", False, "Learning"),
+    Pref("GLANCE_CONFIRM_RISKY", "Confirm risky actions",
+         "Ask before Glance sends, deletes, pays for or posts anything.", True, "Privacy"),
     Pref("GLANCE_PRIVACY", "Privacy guard",
          "Don't send screenshots of sensitive windows such as password managers and banks.", True, "Privacy"),
     Pref("GLANCE_JOURNAL", "Keep a journal",
