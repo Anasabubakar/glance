@@ -57,6 +57,11 @@ class _DiagWorker(QObject):
         except Exception:
             data["cache_files"] = 0
             data["cache_size"] = 0
+        try:
+            import selfcheck
+            data["checkup"] = selfcheck.format_report(selfcheck.run_checks())
+        except Exception as e:
+            data["checkup"] = f"--- Checkup ---\nCould not run: {type(e).__name__}"
         self.result.emit(data)
 
 
@@ -96,7 +101,7 @@ class DiagnosticsPage(BasePage):
         self.body_layout.addLayout(btn_row)
 
     def on_activate(self):
-        self._report.setPlainText("Running diagnostics…")
+        self._report.setPlainText("Running diagnostics and the checkup (this pings your AI providers)…")
         self._run_btn.setEnabled(False)
         self._spinner.start()
         w = _DiagWorker()
@@ -129,6 +134,8 @@ class DiagnosticsPage(BasePage):
             "--- Cache ---",
             f"Files:     {data.get('cache_files', 0)}",
             f"Size:      {data.get('cache_size', 0) / 1024:.1f} KB",
+            "",
+            data.get("checkup", ""),
         ]
         self._report.setPlainText("\n".join(lines))
 
