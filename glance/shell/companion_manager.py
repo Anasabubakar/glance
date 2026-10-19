@@ -515,16 +515,18 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
         return cfg.text_model_pick() or self._current_model or cfg.active_model()
 
     def _get_llm(self) -> BaseLLMProvider:
-        chain = tuple(cfg.fallback_chain())
+        chain = tuple(cfg.fallback_chain()) + (cfg.fallback_enabled(),
+                                                tuple(len(cfg.keys_for(p)) for p in cfg.KEYED))
         if self._llm is not None and getattr(self, "_llm_for", None) != chain:
-            self._llm = None                 # provider or fallback set changed
+            self._llm = None                 # providers, order or keys changed
         if self._llm is None:
             provider = cfg.llm_provider()
             self._llm_for = chain
-            if len(chain) > 1 and provider in ("claude", "openai", "gemini", "groq",
-                                               "openrouter", "custom"):
+            if cfg.fallback_chain() and (provider in ("claude", "openai", "gemini", "groq",
+                                                       "openrouter", "custom")
+                                         or len(cfg.fallback_chain()) > 1):
                 from ai.fallback_provider import FallbackProvider
-                self._llm = FallbackProvider(list(chain))
+                self._llm = FallbackProvider(list(cfg.fallback_chain()))
                 return self._llm
             if provider == "claude":
                 from ai.claude_provider import ClaudeProvider
