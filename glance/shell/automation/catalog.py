@@ -1,0 +1,26 @@
+"""catalog.py — what Glance can do instantly, with example phrases (shown on the Automations page)."""
+
+CATALOG = {
+    "Windows": ["minimize this window", "maximize the browser", "tile this window left", "put the terminal on the top right",
+                "split screen browser and terminal", "move this window to workspace 2", "keep this window on top",
+                "close the terminal", "what windows are open", "switch to the next workspace"],
+    "Apps and websites": ["open the calculator", "open youtube", "open example.com", "search amazon for usb cables",
+                          "play lofi beats on youtube", "close firefox", "switch to chrome"],
+    "System": ["set the volume to 40 percent", "mute the mic", "turn up the brightness", "turn on dark mode",
+               "turn on night light", "turn off wifi", "turn on do not disturb", "set power mode to performance",
+               "lock the screen", "open bluetooth settings", "take a screenshot"],
+    "Keys for the app you're in": ["copy that", "paste", "new tab", "reopen the closed tab", "go to tab 3", "refresh",
+                                   "bookmark this page", "open incognito", "new folder", "show hidden files",
+                                   "comment this line", "scroll down a lot"],
+    "Files": ["open the latest download", "open the projects folder", "create a folder called taxes on my desktop",
+              "move report.pdf to documents", "rename report.pdf to invoice", "zip the taxes folder",
+              "find the file budget", "how big is invoice.pdf", "empty the trash"],
+    "Answers": ["what's 15 percent of 240", "convert 5 miles to km", "how many days until Christmas", "what's my battery",
+                "how much disk space is left", "what's on my clipboard", "flip a coin", "what's the weather in Lagos"],
+    "Web helpers": ["directions to the airport", "translate good morning to french", "define serendipity",
+                    "email john@example.com about the report", "add team meeting to my calendar tomorrow at 3pm"],
+    "Timers and routines": ["set a timer for 25 minutes", "remind me in 20 minutes to stretch",
+                            "set an alarm for 7am", "create a routine called morning that opens gmail and opens calendar",
+                            "when I say start work open github and open the terminal",
+                            "every weekday at 9am run my morning routine", "run my morning routine"],
+}
