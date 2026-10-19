@@ -288,6 +288,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
     sig_point_at            = pyqtSignal(float, float, str)
     sig_point_hold          = pyqtSignal(bool)            # True → dwell forever until release
     sig_confirm             = pyqtSignal(str)             # ask the user: allow this step?
+    sig_macro_cmd           = pyqtSignal(str, str)        # ("macro_start" | "macro_stop", name)
     sig_point_release       = pyqtSignal()                # end dwell + fly buddy back
     sig_error               = pyqtSignal(str)
     sig_copilot_models_done = pyqtSignal(int)             # arg = model count
@@ -302,6 +303,7 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
 
     def __init__(self):
         super().__init__()
+        self.sig_macro_cmd.connect(self._macro_slot)       # runs on the Qt main thread
         self._state: AppState = AppState.IDLE
         self._history: List[Message] = []
         self._current_model: Optional[str] = None
@@ -1607,6 +1609,22 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
         return bool(self._recorder and self._recorder.is_recording)
 
     # ── Workflow capture (record clicks/keystrokes) ──────────────────────────
+
+    def _macro_slot(self, action: str, name: str) -> None:
+        """Start or finish recording a macro (Qt main thread: the recorder listens over D-Bus)."""
+        import macros
+        if action == "macro_start":
+            self._macro_name = name
+            self.workflow_start()
+            return
+        events = self._workflow.stop() if self._workflow else []
+        label = name or getattr(self, "_macro_name", "") or time.strftime("macro %H%M")
+        if not events:
+            self._submit(self._reply_local("I didn't record anything."))
+            return
+        macros.save(label, events)
+        self._last_macro = macros.load(label)
+        self._submit(self._reply_local(f"Saved {label}: {macros.describe(macros.to_steps(events))}."))
 
     def workflow_start(self) -> bool:
         if self._workflow is None:
