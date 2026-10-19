@@ -437,6 +437,16 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-20" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.20 — Hears you better, answers faster</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• The wake word is stripped however it was heard and common mis-hearings are repaired</li>
+        <li>• Command transcription is primed with Glance&apos;s vocabulary</li>
+        <li>• The AI chain gives up after 28 seconds; Gemini chat answers race the two best models</li>
+        <li>• &quot;Open youtube and github&quot; opens both</li>
+        <li>• The .deb installs the GNOME extension system-wide, so updates need only one login</li>
+      </ul>
+
       <h2 id="v0-3-19" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.19 — Automations</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
