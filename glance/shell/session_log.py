@@ -41,7 +41,8 @@ def turn(label: str = "") -> None:
 
 def slog(category: str, msg: str = "") -> None:
     """Log one timestamped event to console + ~/.glance/logs/session.log."""
-    line = f"[{_stamp()}] {category:<6} {msg}"
+    from secrets_redact import redact
+    line = redact(f"[{_stamp()}] {category:<6} {msg}")
     print(line, flush=True)
     global _fh
     try:

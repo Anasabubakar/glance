@@ -8,6 +8,8 @@ import sys
 
 import frozen_env
 frozen_env.install()   # child processes must not inherit the bundle's libraries
+import secrets_redact
+secrets_redact.install()   # API keys can never reach the console, logs or diagnostics
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
@@ -104,6 +106,44 @@ def main(launcher_window=None):
     manager.sig_point_at.connect(overlay.point_at)
     manager.sig_point_hold.connect(overlay.set_point_hold)
     manager.sig_point_release.connect(overlay.release_point)
+
+    # Measure which Gemini models click accurately (a few dozen cheap calls, in the
+    # background, at most every two weeks). The result steers which model Glance uses.
+    def _calibrate_later():
+        def work():
+            try:
+                import asyncio
+                from ai import grounding
+                if cfg.gemini_keys() and grounding.is_stale():
+                    asyncio.run(grounding.calibrate(5, 5))
+            except Exception as _e:
+                print(f"[glance] calibration skipped: {type(_e).__name__}", flush=True)
+        import threading
+        threading.Thread(target=work, daemon=True).start()
+    QTimer.singleShot(45000, _calibrate_later)
+
+    # Escape (grabbed by the GNOME extension only while Glance is acting) stops the task.
+    try:
+        from gnome_signals import GnomeSignals
+        _gsig = GnomeSignals()
+        _gsig.stop_pressed.connect(manager.stop)
+        app._glance_gnome_signals = _gsig          # keep a reference alive
+    except Exception as _e:
+        print(f"[glance] stop-key signals unavailable: {_e}", flush=True)
+
+    def _ask_confirm(what: str):
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(panel)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle("Glance")
+        box.setText(f"Glance wants to: {what}")
+        box.setInformativeText("This looks like it sends, deletes, pays or posts something. Allow it?")
+        allow = box.addButton("Allow", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Stop", QMessageBox.ButtonRole.RejectRole)
+        box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        box.finished.connect(lambda _r: manager.confirm_answer(box.clickedButton() is allow))
+        box.open()
+    manager.sig_confirm.connect(_ask_confirm)
 
     # Whiteboard annotations
     manager.sig_arrow.connect(overlay.add_arrow)
