@@ -284,6 +284,99 @@ class GeminiProvider(BaseLLMProvider):
                               f"[{last_err}]")
         raise GeminiError(last_err)
 
+    async def complete(self, user_text: str, screenshots_b64: List[str], history: List[Message],
+                       system_prompt: str, model: str | None = None,
+                       race: int = 2, budget: float = 40.0) -> str:
+        """One full answer, as fast as possible: the best `race` healthy models are asked
+        AT THE SAME TIME and the first good answer wins (the rest are cancelled). Free and
+        preview Gemini models take 3-20 s at random, so the quickest of two is far steadier
+        than one. Failed models are replaced at once by the next candidate; gives up after
+        `budget` seconds with a clear error instead of retrying for minutes."""
+        contents = [{"role": "user" if m.role == "user" else "model",
+                     "parts": [{"text": m.content}]} for m in history]
+        parts: list = [{"inline_data": {"mime_type": "image/jpeg", "data": b}}
+                       for b in screenshots_b64]
+        parts.append({"text": user_text})
+        contents.append({"role": "user", "parts": parts})
+        vision = bool(screenshots_b64)
+        body = {"contents": contents,
+                "systemInstruction": {"parts": [{"text": system_prompt}]},
+                "generationConfig": {"maxOutputTokens": 512, "temperature": 0.2,
+                                     "thinkingConfig": ({"thinkingLevel": "low"} if vision
+                                                        else {"thinkingBudget": 0})}}
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + budget
+        errors: list = []
+
+        async def one(client: httpx.AsyncClient, name: str) -> str:
+            send = body
+            if name in _nothink:
+                send = {**body, "generationConfig": {k: v for k, v in
+                        body["generationConfig"].items() if k != "thinkingConfig"}}
+            t0 = time.monotonic()
+            for _try in range(2):
+                r = await client.post(f"{BASE}/models/{name}:generateContent", json=send,
+                                      headers=_hdr(self._api_key))
+                if r.status_code == 400 and "thinkingConfig" in send["generationConfig"] \
+                        and "api key" not in r.text.lower():
+                    _nothink.add(name); _save_health()           # drop it for this model
+                    send = {**body, "generationConfig": {k: v for k, v in
+                            body["generationConfig"].items() if k != "thinkingConfig"}}
+                    continue
+                break
+            if r.status_code != 200:
+                low = r.text.lower()
+                if r.status_code in (401, 403) and "no longer available" not in low:
+                    raise GeminiError(f"{name}: HTTP {r.status_code} {_err_text(r.text, self._api_key)}")
+                if r.status_code in (400, 403, 404):
+                    _bad.add(name); _save_health()
+                else:
+                    _cooldown(name, r.status_code, r.headers.get("retry-after"))
+                raise RuntimeError(f"{name}: HTTP {r.status_code}")
+            try:
+                text = "".join(p.get("text", "") for c in r.json().get("candidates", [])
+                               for p in c.get("content", {}).get("parts", []))
+            except ValueError:
+                text = ""
+            if not text.strip():
+                raise RuntimeError(f"{name}: empty answer")
+            _record_latency(name, vision, time.monotonic() - t0)
+            return text
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30, connect=6)) as client:
+            queue = _order(await _candidates(client, self._api_key, model), vision)
+            running: dict = {}
+            try:
+                while True:
+                    while queue and len(running) < race:
+                        name = queue.pop(0)
+                        running[asyncio.ensure_future(one(client, name))] = name
+                    if not running:
+                        break
+                    left = deadline - loop.time()
+                    if left <= 0:
+                        break
+                    done, _ = await asyncio.wait(running, timeout=left,
+                                                 return_when=asyncio.FIRST_COMPLETED)
+                    if not done:
+                        break
+                    for t in done:
+                        name = running.pop(t)
+                        exc = t.exception()
+                        if exc is None:
+                            _sticky["vision" if vision else "text"] = name
+                            return t.result()
+                        if isinstance(exc, GeminiError):
+                            raise exc
+                        errors.append(str(exc))
+            finally:
+                for t in running:
+                    t.cancel()
+        hint = " Wait a minute and try again, or add a key with billing for higher limits." \
+            if any("429" in e or "503" in e for e in errors) else ""
+        raise GeminiError("Gemini is too busy right now." + hint +
+                          (f" [{errors[-1]}]" if errors else ""))
+
     async def health_check(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=5) as client:
