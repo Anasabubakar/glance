@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-16" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.16 — Open any app</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Opens any installed app by name, including Text Editor for &quot;notepad&quot;</li>
+        <li>• Gemini gives up after 45 seconds and hands over to your next provider</li>
+        <li>• Glance says so out loud when every provider is busy</li>
+      </ul>
+
       <h2 id="v0-3-15" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.15 — Provider priority</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
