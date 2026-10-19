@@ -515,11 +515,17 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
         return cfg.text_model_pick() or self._current_model or cfg.active_model()
 
     def _get_llm(self) -> BaseLLMProvider:
-        if self._llm is not None and getattr(self, "_llm_for", None) != cfg.llm_provider():
-            self._llm = None                 # provider changed from another page
+        chain = tuple(cfg.fallback_chain())
+        if self._llm is not None and getattr(self, "_llm_for", None) != chain:
+            self._llm = None                 # provider or fallback set changed
         if self._llm is None:
             provider = cfg.llm_provider()
-            self._llm_for = provider
+            self._llm_for = chain
+            if len(chain) > 1 and provider in ("claude", "openai", "gemini", "groq",
+                                               "openrouter", "custom"):
+                from ai.fallback_provider import FallbackProvider
+                self._llm = FallbackProvider(list(chain))
+                return self._llm
             if provider == "claude":
                 from ai.claude_provider import ClaudeProvider
                 self._llm = ClaudeProvider()
@@ -535,6 +541,12 @@ class CompanionManager(RoutingMixin, TourMixin, ActionsMixin, QObject):
             elif provider == "custom":
                 from ai.custom_provider import CustomProvider
                 self._llm = CustomProvider()
+            elif provider == "groq":
+                from ai.openai_compat import GroqProvider
+                self._llm = GroqProvider()
+            elif provider == "openrouter":
+                from ai.openai_compat import OpenRouterProvider
+                self._llm = OpenRouterProvider()
             elif provider == "cloud":
                 from ai.cloud_provider import CloudProvider
                 self._llm = CloudProvider()
