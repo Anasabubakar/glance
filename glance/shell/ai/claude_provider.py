@@ -11,8 +11,8 @@ MAX_TOKENS = 1024
 
 class ClaudeProvider(BaseLLMProvider):
 
-    def __init__(self):
-        self._client = anthropic.AsyncAnthropic(api_key=cfg.anthropic_api_key)
+    def __init__(self, api_key: str | None = None):
+        self._client = anthropic.AsyncAnthropic(api_key=api_key or cfg.anthropic_api_key)
 
     async def stream_response(
         self,

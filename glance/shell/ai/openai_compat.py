@@ -12,8 +12,8 @@ OPENROUTER_FREE = "openrouter/free"        # OpenRouter's router over its free m
 
 
 class GroqProvider(CustomProvider):
-    def __init__(self):
-        super().__init__(base_url=GROQ_URL, api_key=cfg.groq_api_key, model=GROQ_TEXT)
+    def __init__(self, api_key: str | None = None):
+        super().__init__(base_url=GROQ_URL, api_key=api_key or cfg.groq_api_key, model=GROQ_TEXT)
 
     async def stream_response(self, user_text, screenshots_b64, history, system_prompt, model=None):
         # Only the Llama 4 models on Groq accept images; use one when there is a screenshot.
@@ -27,8 +27,8 @@ class GroqProvider(CustomProvider):
 
 
 class OpenRouterProvider(CustomProvider):
-    def __init__(self):
-        super().__init__(base_url=OPENROUTER_URL, api_key=cfg.openrouter_api_key,
+    def __init__(self, api_key: str | None = None):
+        super().__init__(base_url=OPENROUTER_URL, api_key=api_key or cfg.openrouter_api_key,
                          model=OPENROUTER_FREE)
 
     async def stream_response(self, user_text, screenshots_b64, history, system_prompt, model=None):

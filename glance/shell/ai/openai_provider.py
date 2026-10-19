@@ -11,8 +11,8 @@ MAX_TOKENS = 1024
 
 class OpenAIProvider(BaseLLMProvider):
 
-    def __init__(self):
-        self._client = AsyncOpenAI(api_key=cfg.openai_api_key)
+    def __init__(self, api_key: str | None = None):
+        self._client = AsyncOpenAI(api_key=api_key or cfg.openai_api_key)
 
     async def stream_response(
         self,
