@@ -71,6 +71,13 @@ const IFACE = `<node>
     <method name="WindowAction">
       <arg type="s" direction="in" name="which"/><arg type="s" direction="in" name="action"/>
       <arg type="s" direction="out" name="json"/></method>
+    <method name="GetClipboard"><arg type="s" direction="in" name="kind"/><arg type="s" direction="out" name="text"/></method>
+    <method name="SetClipboard"><arg type="s" direction="in" name="text"/></method>
+    <method name="SwitchWorkspace"><arg type="i" direction="in" name="index"/></method>
+    <method name="MoveWindowToWorkspace">
+      <arg type="s" direction="in" name="which"/><arg type="i" direction="in" name="index"/>
+      <arg type="s" direction="out" name="json"/></method>
+    <method name="GetWorkspaces"><arg type="s" direction="out" name="json"/></method>
     <method name="SetStopGrab"><arg type="b" direction="in" name="on"/></method>
     <method name="SetRecording"><arg type="b" direction="in" name="on"/></method>
     <signal name="HotkeyPressed"/>
@@ -701,6 +708,31 @@ export default class GlanceCursor extends Extension {
             case 'fullscreen': w.make_fullscreen(); break;
             case 'unfullscreen': w.unmake_fullscreen(); break;
             case 'close': w.delete(global.get_current_time()); break;
+            case 'above': w.make_above(); break;
+            case 'unabove': w.unmake_above(); break;
+            case 'stick': w.stick(); break;
+            case 'unstick': w.unstick(); break;
+            case 'tile_left': case 'tile_right': case 'tile_top': case 'tile_bottom':
+            case 'tile_center': case 'tile_topleft': case 'tile_topright':
+            case 'tile_bottomleft': case 'tile_bottomright': {
+                try { w.unmaximize(Meta.MaximizeFlags.BOTH); } catch (_e) { try { w.unmaximize(); } catch (_e2) { /* already */ } }
+                const area = w.get_work_area_current_monitor();
+                const hw = Math.floor(area.width / 2), hh = Math.floor(area.height / 2);
+                const g = {
+                    tile_left: [area.x, area.y, hw, area.height],
+                    tile_right: [area.x + hw, area.y, area.width - hw, area.height],
+                    tile_top: [area.x, area.y, area.width, hh],
+                    tile_bottom: [area.x, area.y + hh, area.width, area.height - hh],
+                    tile_topleft: [area.x, area.y, hw, hh],
+                    tile_topright: [area.x + hw, area.y, area.width - hw, hh],
+                    tile_bottomleft: [area.x, area.y + hh, hw, area.height - hh],
+                    tile_bottomright: [area.x + hw, area.y + hh, area.width - hw, area.height - hh],
+                    tile_center: [area.x + Math.floor(area.width * 0.15), area.y + Math.floor(area.height * 0.1),
+                                  Math.floor(area.width * 0.7), Math.floor(area.height * 0.8)],
+                }[action];
+                w.move_resize_frame(true, g[0], g[1], g[2], g[3]);
+                break;
+            }
             case 'activate': Main.activateWindow(w); break;
             default: return JSON.stringify({ok: false, err: `unknown action ${action}`});
             }
@@ -709,6 +741,47 @@ export default class GlanceCursor extends Extension {
             console.error('glance-cursor: WindowAction failed', e);
             return JSON.stringify({ok: false, err: String(e)});
         }
+    }
+
+    // ── clipboard and workspaces (done in the compositor: exact, instant) ─
+    GetClipboardAsync(params, invocation) {
+        try {
+            const kind = String(params[0]) === 'primary' ? St.ClipboardType.PRIMARY : St.ClipboardType.CLIPBOARD;
+            St.Clipboard.get_default().get_text(kind, (_c, text) => {
+                invocation.return_value(GLib.Variant.new('(s)', [text ?? '']));
+            });
+        } catch (e) {
+            invocation.return_value(GLib.Variant.new('(s)', ['']));
+        }
+    }
+
+    SetClipboard(text) {
+        try { St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text); }
+        catch (e) { console.error('glance-cursor: SetClipboard failed', e); }
+    }
+
+    SwitchWorkspace(index) {
+        try {
+            const wm = global.workspace_manager;
+            const n = wm.get_n_workspaces();
+            const i = Math.max(0, Math.min(n - 1, index));
+            wm.get_workspace_by_index(i).activate(global.get_current_time());
+        } catch (e) { console.error('glance-cursor: SwitchWorkspace failed', e); }
+    }
+
+    MoveWindowToWorkspace(which, index) {
+        try {
+            const w = this._findWindow(which);
+            if (!w) return JSON.stringify({ok: false, err: 'no such window'});
+            const n = global.workspace_manager.get_n_workspaces();
+            w.change_workspace_by_index(Math.max(0, Math.min(n - 1, index)), false);
+            return JSON.stringify({ok: true});
+        } catch (e) { return JSON.stringify({ok: false, err: String(e)}); }
+    }
+
+    GetWorkspaces() {
+        const wm = global.workspace_manager;
+        return JSON.stringify({count: wm.get_n_workspaces(), current: wm.get_active_workspace_index()});
     }
 
     // ── stop key: Escape is only grabbed while Glance is acting ──────────
@@ -799,5 +872,5 @@ export default class GlanceCursor extends Extension {
         });
     }
 
-    get Version() { return 3; }
+    get Version() { return 4; }
 }

@@ -112,6 +112,41 @@ def window_action(which: str, action: str) -> Optional[dict]:
         return None
 
 
+def get_clipboard(kind: str = "clipboard") -> str:
+    """Text on the clipboard ("clipboard") or the current selection ("primary")."""
+    out = _call("GetClipboard", _q(kind), timeout=3.0)
+    if not out:
+        return ""
+    try:
+        return ast.literal_eval(out.strip())[0]
+    except (ValueError, SyntaxError, IndexError, TypeError):
+        return ""
+
+
+def set_clipboard(text: str) -> None:
+    _call("SetClipboard", _q(str(text)), timeout=3.0)
+
+
+def switch_workspace(index: int) -> None:
+    _call("SwitchWorkspace", str(int(index)), timeout=3.0)
+
+
+def move_window_to_workspace(which: str, index: int):
+    out = _call("MoveWindowToWorkspace", _q(which), str(int(index)), timeout=3.0)
+    try:
+        return json.loads(ast.literal_eval(out.strip())[0]) if out else None
+    except (ValueError, SyntaxError, IndexError, TypeError):
+        return None
+
+
+def workspaces() -> dict:
+    out = _call("GetWorkspaces", timeout=3.0)
+    try:
+        return json.loads(ast.literal_eval(out.strip())[0]) if out else {}
+    except (ValueError, SyntaxError, IndexError, TypeError):
+        return {}
+
+
 def set_stop_grab(on: bool) -> None:
     _call("SetStopGrab", "true" if on else "false", timeout=3.0)
 
