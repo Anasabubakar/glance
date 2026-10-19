@@ -9,15 +9,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Anasabubakar/glance/releases/latest"><strong>Download v0.3.19</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quickstart">Quickstart</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#new-in-v0319">What's New</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#providers">Providers</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#building-from-source">Build from source</a>
+  <a href="https://github.com/Anasabubakar/glance/releases/latest"><strong>Download v0.3.20</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quickstart">Quickstart</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#new-in-v0320">What's New</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#providers">Providers</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#building-from-source">Build from source</a>
 </p>
 
 <br>
 
 <p align="center">
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.19/Setup-Glance.exe">⬇ Windows (.exe)</a>&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.19/glance_0.3.19_amd64.deb">⬇ Linux (.deb)</a>&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.19/Glance-0.3.19-x86_64.AppImage">⬇ Linux (AppImage)</a>
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.20/Setup-Glance.exe">⬇ Windows (.exe)</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.20/glance_0.3.20_amd64.deb">⬇ Linux (.deb)</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Anasabubakar/glance/releases/download/v0.3.20/Glance-0.3.20-x86_64.AppImage">⬇ Linux (AppImage)</a>
 </p>
 
 <p align="center">
@@ -31,6 +31,12 @@ Hold a hotkey, talk to your computer, let go. Glance captures your screen, liste
 It works with **Claude**, **OpenAI**, **Gemini**, **GitHub Copilot**, or fully offline with **Ollama** — no API keys required for local mode.
 
 ---
+
+## New in v0.3.20
+
+- **Understands you the way you actually speak:** the wake word is stripped however it was heard ("Glans", "Glenn", "Heyglow") and common mis-hearings are repaired, so automations catch the request instead of the AI.
+- **Faster, bounded AI answers:** the whole chain gives up after 28 seconds and Gemini chat answers race the two best models.
+- **Updates need only one login:** the .deb installs the GNOME extension system-wide.
 
 ## New in v0.3.19
 
@@ -186,7 +192,7 @@ Glance now opens a **premium control dashboard** before launching the companion.
 
 ### Windows
 
-1. Download [**Setup-Glance.exe**](https://github.com/Anasabubakar/glance/releases/download/v0.3.19/Setup-Glance.exe)
+1. Download [**Setup-Glance.exe**](https://github.com/Anasabubakar/glance/releases/download/v0.3.20/Setup-Glance.exe)
 2. Run the installer
 3. Launch Glance from the Start menu or desktop shortcut
 4. The **Dashboard** opens — review your setup, then click **"Start Glance"**
@@ -201,8 +207,8 @@ Choose your format:
 **Debian / Ubuntu (recommended):**
 
 ```bash
-wget https://github.com/Anasabubakar/glance/releases/download/v0.3.19/glance_0.3.19_amd64.deb
-sudo apt install ./glance_0.3.19_amd64.deb
+wget https://github.com/Anasabubakar/glance/releases/download/v0.3.20/glance_0.3.20_amd64.deb
+sudo apt install ./glance_0.3.20_amd64.deb
 glance-companion
 ```
 
@@ -211,9 +217,9 @@ The .deb integrates with your system — adds a desktop entry, icons, and file a
 **Any distro (AppImage):**
 
 ```bash
-wget https://github.com/Anasabubakar/glance/releases/download/v0.3.19/Glance-0.3.19-x86_64.AppImage
-chmod +x Glance-0.3.19-x86_64.AppImage
-./Glance-0.3.19-x86_64.AppImage
+wget https://github.com/Anasabubakar/glance/releases/download/v0.3.20/Glance-0.3.20-x86_64.AppImage
+chmod +x Glance-0.3.20-x86_64.AppImage
+./Glance-0.3.20-x86_64.AppImage
 ```
 
 No installation required. Just download, make executable, and run. Works on any Linux distribution.
