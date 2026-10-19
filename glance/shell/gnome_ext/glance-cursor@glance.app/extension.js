@@ -128,7 +128,7 @@ export default class GlanceCursor extends Extension {
         this._noteFocus();
         // Create the virtual keyboard now: the first keys sent through a device created
         // at the moment of use were being dropped (the first typed text went missing).
-        try { this._keyboard(); } catch (e) { console.error('glance-cursor: keyboard warm-up failed', e); }
+        try { this._keyboard(); this._pointer(); } catch (e) { console.error('glance-cursor: input warm-up failed', e); }
     }
 
     disable() {
@@ -138,7 +138,7 @@ export default class GlanceCursor extends Extension {
         this.SetRecording(false);
         if (this._focusId) global.display.disconnect(this._focusId);
         this._focusId = 0;
-        this._vptr = this._vkbd = null;
+        this._vptr = this._vkbd = this._vptrMain = null;
         if (this._accelId) global.display.disconnect(this._accelId);
         this._accelId = 0;
         if (this._monitorsId)
@@ -445,12 +445,12 @@ export default class GlanceCursor extends Extension {
     // A fresh virtual pointer per action: a long-lived one stops delivering
     // after its first burst of events on GNOME 46. Kept alive briefly so queued
     // events are flushed before it is released.
-    _pointer(keepMs = 1500) {
-        const dev = Clutter.get_default_backend().get_default_seat()
+    // One long-lived virtual pointer: a device created at the moment of use drops its first
+    // events (the first drawing stroke or click after startup was lost), so it is made
+    // at enable() and reused.
+    _pointer(_keepMs) {
+        return this._vptrMain ??= Clutter.get_default_backend().get_default_seat()
             .create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE);
-        (this._vpool ??= new Set()).add(dev);
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, keepMs, () => { this._vpool.delete(dev); return GLib.SOURCE_REMOVE; });
-        return dev;
     }
 
     _keyboard() {
@@ -548,8 +548,13 @@ export default class GlanceCursor extends Extension {
         const stepMs = Math.max(4, Math.min(40, Math.floor(total / path.length)));
         const p = this._pointer(total + path.length * stepMs + 2000);
         const b = this._button(button);
-        const steps = [() => p.notify_absolute_motion(this._t(), path[0][0], path[0][1]),
-                       () => {}, () => p.notify_button(this._t(), b, Clutter.ButtonState.PRESSED), () => {}];
+        // Let the window under the pointer receive "enter" (about 150 ms) before pressing,
+        // and hold briefly after the press, or toolkits like GTK4 ignore the gesture.
+        const settle = Math.ceil(150 / stepMs), hold = Math.ceil(70 / stepMs);
+        const steps = [() => p.notify_absolute_motion(this._t(), path[0][0], path[0][1])];
+        for (let i = 0; i < settle; i++) steps.push(() => {});
+        steps.push(() => p.notify_button(this._t(), b, Clutter.ButtonState.PRESSED));
+        for (let i = 0; i < hold; i++) steps.push(() => {});
         for (let i = 1; i < path.length; i++)
             steps.push(() => p.notify_absolute_motion(this._t(), path[i][0], path[i][1]));
         steps.push(() => {});
@@ -734,6 +739,7 @@ export default class GlanceCursor extends Extension {
                     let o = null;
                     if (t === Clutter.EventType.BUTTON_PRESS) {
                         const [x, y] = ev.get_coords();
+                        this._lastClickT = Date.now();
                         o = {kind: 'click', x: Math.round(x), y: Math.round(y), button: ev.get_button()};
                     } else if (t === Clutter.EventType.KEY_PRESS) {
                         let ch = '';
@@ -755,9 +761,29 @@ export default class GlanceCursor extends Extension {
                     }
                     return Clutter.EVENT_PROPAGATE;
                 });
+                // Backstop: with several client windows open the stage did not always report
+                // clicks, so also watch the pointer's button state (works for every window).
+                this._btnPrev = 0;
+                this._pollId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 20, () => {
+                    const [x, y, mods] = global.get_pointer();
+                    const m = mods & (Clutter.ModifierType.BUTTON1_MASK | Clutter.ModifierType.BUTTON2_MASK |
+                                      Clutter.ModifierType.BUTTON3_MASK);
+                    const pressed = m & ~this._btnPrev;
+                    this._btnPrev = m;
+                    if (pressed && Date.now() - (this._lastClickT ?? 0) > 150) {
+                        const button = (pressed & Clutter.ModifierType.BUTTON1_MASK) ? 1
+                            : (pressed & Clutter.ModifierType.BUTTON3_MASK) ? 3 : 2;
+                        const w = this._lastFocus ?? global.display.focus_window;
+                        const o = {kind: 'click', x: Math.round(x), y: Math.round(y), button,
+                                   window: w ? (w.get_title() || '') : '', t: Date.now()};
+                        this._dbus.emit_signal('InputEvent', GLib.Variant.new('(s)', [JSON.stringify(o)]));
+                    }
+                    return this._pollId ? GLib.SOURCE_CONTINUE : GLib.SOURCE_REMOVE;
+                });
             } else if (!on && this._recId) {
                 global.stage.disconnect(this._recId);
                 this._recId = 0;
+                if (this._pollId) { GLib.source_remove(this._pollId); this._pollId = 0; }
             }
         } catch (e) { console.error('glance-cursor: SetRecording failed', e); }
     }
