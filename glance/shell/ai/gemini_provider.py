@@ -216,14 +216,17 @@ class GeminiProvider(BaseLLMProvider):
 
         last_err = "no usable Gemini model"
         _vision = bool(screenshots_b64)
+        _deadline = time.monotonic() + 45.0     # never keep the user waiting minutes
         async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=6, read=30)) as client:
             # Google answers 503 "high demand" in short bursts that hit every model
             # at once; a brief backoff and a second pass rides them out.
-            for attempt in range(3):
+            for attempt in range(2):
                 retriable = False
                 queue = _pairs(_order(await _candidates(client, self._api_key, model),
-                                      bool(screenshots_b64)), self._keys)
+                                      bool(screenshots_b64)), self._keys)[:6]
                 while queue:
+                    if time.monotonic() > _deadline:
+                        raise GeminiError("Gemini is too busy right now. " + last_err[:160])
                     name, key = queue.pop(0)
                     url = f"{BASE}/models/{name}:streamGenerateContent?alt=sse"
                     _t0 = time.monotonic()
