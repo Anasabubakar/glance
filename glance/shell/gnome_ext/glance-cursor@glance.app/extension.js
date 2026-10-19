@@ -55,6 +55,17 @@ const IFACE = `<node>
       <arg type="i" direction="in" name="dy"/></method>
     <method name="TypeText"><arg type="s" direction="in" name="text"/></method>
     <method name="Key"><arg type="s" direction="in" name="combo"/></method>
+    <method name="Drag">
+      <arg type="d" direction="in" name="x1"/><arg type="d" direction="in" name="y1"/>
+      <arg type="d" direction="in" name="x2"/><arg type="d" direction="in" name="y2"/>
+      <arg type="i" direction="in" name="button"/><arg type="i" direction="in" name="ms"/></method>
+    <method name="DragPath">
+      <arg type="s" direction="in" name="points"/><arg type="i" direction="in" name="button"/>
+      <arg type="i" direction="in" name="ms"/></method>
+    <method name="ClickWith">
+      <arg type="d" direction="in" name="x"/><arg type="d" direction="in" name="y"/>
+      <arg type="i" direction="in" name="button"/><arg type="i" direction="in" name="count"/>
+      <arg type="s" direction="in" name="mods"/></method>
     <method name="GetState"><arg type="s" direction="out" name="json"/></method>
     <method name="GetWindows"><arg type="s" direction="out" name="json"/></method>
     <method name="WindowAction">
@@ -115,6 +126,9 @@ export default class GlanceCursor extends Extension {
         this._lastFocus = null;
         this._focusId = global.display.connect('notify::focus-window', () => this._noteFocus());
         this._noteFocus();
+        // Create the virtual keyboard now: the first keys sent through a device created
+        // at the moment of use were being dropped (the first typed text went missing).
+        try { this._keyboard(); } catch (e) { console.error('glance-cursor: keyboard warm-up failed', e); }
     }
 
     disable() {
@@ -431,11 +445,11 @@ export default class GlanceCursor extends Extension {
     // A fresh virtual pointer per action: a long-lived one stops delivering
     // after its first burst of events on GNOME 46. Kept alive briefly so queued
     // events are flushed before it is released.
-    _pointer() {
+    _pointer(keepMs = 1500) {
         const dev = Clutter.get_default_backend().get_default_seat()
             .create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE);
         (this._vpool ??= new Set()).add(dev);
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1500, () => { this._vpool.delete(dev); return GLib.SOURCE_REMOVE; });
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, keepMs, () => { this._vpool.delete(dev); return GLib.SOURCE_REMOVE; });
         return dev;
     }
 
@@ -501,13 +515,76 @@ export default class GlanceCursor extends Extension {
 
     TypeText(text) {
         try {
+            const k = this._keyboard();
+            const steps = [];
             for (const ch of text) {
                 const cp = ch.codePointAt(0);
                 const sym = ch === '\n' ? Clutter.KEY_Return : ch === '\t' ? Clutter.KEY_Tab
                     : Clutter.unicode_to_keysym(cp);
-                if (sym) this._tap(sym);
+                if (!sym) continue;
+                steps.push(() => k.notify_keyval(this._t(), sym, Clutter.KeyState.PRESSED));
+                steps.push(() => k.notify_keyval(this._t(), sym, Clutter.KeyState.RELEASED));
             }
+            this._seq(steps, 7);          // ~3.5 ms per event keeps order and drops nothing
         } catch (e) { console.error('glance-cursor: TypeText failed', e); }
+    }
+
+    // ── drag, drag and drop, drawing ─────────────────────────────────────
+    _button(b) {
+        return {1: Clutter.BUTTON_PRIMARY, 2: Clutter.BUTTON_MIDDLE, 3: Clutter.BUTTON_SECONDARY}[b] ?? Clutter.BUTTON_PRIMARY;
+    }
+
+    // Walk a polyline with the button held. Points are inserted so no step is > 10 px
+    // (apps ignore a drag that jumps), and the whole gesture takes about `ms`.
+    _dragAlong(pts, button, ms) {
+        if (!pts || pts.length < 2) return;
+        const path = [pts[0]];
+        for (let i = 1; i < pts.length; i++) {
+            const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+            const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 10));
+            for (let j = 1; j <= n; j++) path.push([x0 + (x1 - x0) * j / n, y0 + (y1 - y0) * j / n]);
+        }
+        const total = Math.max(300, Math.min(ms || 700, 20000));
+        const stepMs = Math.max(4, Math.min(40, Math.floor(total / path.length)));
+        const p = this._pointer(total + path.length * stepMs + 2000);
+        const b = this._button(button);
+        const steps = [() => p.notify_absolute_motion(this._t(), path[0][0], path[0][1]),
+                       () => {}, () => p.notify_button(this._t(), b, Clutter.ButtonState.PRESSED), () => {}];
+        for (let i = 1; i < path.length; i++)
+            steps.push(() => p.notify_absolute_motion(this._t(), path[i][0], path[i][1]));
+        steps.push(() => {});
+        steps.push(() => p.notify_button(this._t(), b, Clutter.ButtonState.RELEASED));
+        this._seq(steps, stepMs);
+    }
+
+    Drag(x1, y1, x2, y2, button, ms) {
+        try { this._dragAlong([[x1, y1], [x2, y2]], button, ms); }
+        catch (e) { console.error('glance-cursor: Drag failed', e); }
+    }
+
+    DragPath(points, button, ms) {
+        try { this._dragAlong(JSON.parse(points), button, ms); }
+        catch (e) { console.error('glance-cursor: DragPath failed', e); }
+    }
+
+    // click with modifier keys held ("ctrl", "shift", "alt", "super"), e.g. ctrl+click
+    ClickWith(x, y, button, count, mods) {
+        try {
+            const names = {ctrl: 'Control_L', control: 'Control_L', shift: 'Shift_L', alt: 'Alt_L',
+                super: 'Super_L', win: 'Super_L', meta: 'Super_L'};
+            const held = String(mods || '').toLowerCase().split(/[+,\s]+/).map(m => this._sym(names[m] ?? '')).filter(Boolean);
+            const k = this._keyboard();
+            const p = this._pointer(2500);
+            const b = this._button(button);
+            const steps = [() => held.forEach(m => k.notify_keyval(this._t(), m, Clutter.KeyState.PRESSED)),
+                           () => p.notify_absolute_motion(this._t(), x, y)];
+            for (let i = 0; i < Math.max(1, count); i++) {
+                steps.push(() => p.notify_button(this._t(), b, Clutter.ButtonState.PRESSED));
+                steps.push(() => p.notify_button(this._t(), b, Clutter.ButtonState.RELEASED));
+            }
+            steps.push(() => held.slice().reverse().forEach(m => k.notify_keyval(this._t(), m, Clutter.KeyState.RELEASED)));
+            this._seq(steps, 45);
+        } catch (e) { console.error('glance-cursor: ClickWith failed', e); }
     }
 
     // "ctrl+shift+t", "enter", "alt+tab", "super"
@@ -696,5 +773,5 @@ export default class GlanceCursor extends Extension {
         });
     }
 
-    get Version() { return 2; }
+    get Version() { return 3; }
 }
