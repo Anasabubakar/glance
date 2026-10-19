@@ -214,7 +214,40 @@ class GnomeActuator:
         _call("Scroll", f"{lx:.1f}", f"{ly:.1f}", str(int(dy)))
 
     def type_text(self, text):
-        _call("TypeText", _q(str(text)))
+        text = str(text)
+        _call("TypeText", _q(text))
+        time.sleep(len(text) * 0.016 + 0.15)       # the shell types in the background: wait for it
+
+    def triple_click(self, x, y):
+        lx, ly = _logical(x, y)
+        _call("Click", f"{lx:.1f}", f"{ly:.1f}", "1", "3")
+
+    def middle_click(self, x, y):
+        lx, ly = _logical(x, y)
+        _call("Click", f"{lx:.1f}", f"{ly:.1f}", "2", "1")
+
+    def click_with(self, x, y, mods, button=1, count=1):
+        """ctrl+click, shift+click, ...  mods like "ctrl" or "ctrl+shift"."""
+        lx, ly = _logical(x, y)
+        _call("ClickWith", f"{lx:.1f}", f"{ly:.1f}", str(int(button)), str(int(count)), _q(str(mods)))
+
+    def drag(self, x1, y1, x2, y2, ms=700):
+        """Press at the first point, move to the second, release (drag and drop, select)."""
+        ax, ay = _logical(x1, y1)
+        bx, by = _logical(x2, y2)
+        _call("Drag", f"{ax:.1f}", f"{ay:.1f}", f"{bx:.1f}", f"{by:.1f}", "1", str(int(ms)))
+        time.sleep(ms / 1000.0 + 0.4)
+
+    def draw(self, strokes, ms_per_stroke=900):
+        """Freehand: each stroke is a list of (x, y) points followed with the button held."""
+        import json as _j
+        for st in strokes:
+            if len(st) < 2:
+                continue
+            pts = [list(_logical(x, y)) for x, y in st]
+            ms = max(400, min(ms_per_stroke, 12000))
+            _call("DragPath", _q(_j.dumps([[round(a, 1), round(b, 1)] for a, b in pts])), "1", str(ms))
+            time.sleep(ms / 1000.0 + 0.5)
 
     def key(self, combo):
         _call("Key", _q(str(combo)))

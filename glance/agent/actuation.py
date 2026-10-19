@@ -47,6 +47,23 @@ class Actuator(ABC):
     def key(self, combo: str) -> None: ...      # e.g. "ctrl+a", "enter"
 
 
+    # Optional gestures. The GNOME actuator implements them all; the others use pynput.
+    def triple_click(self, x: int, y: int) -> None:
+        self.double_click(x, y)
+
+    def middle_click(self, x: int, y: int) -> None:
+        raise NotImplementedError
+
+    def click_with(self, x: int, y: int, mods: str, button: int = 1, count: int = 1) -> None:
+        self.left_click(x, y)
+
+    def drag(self, x1: int, y1: int, x2: int, y2: int, ms: int = 700) -> None:
+        raise NotImplementedError
+
+    def draw(self, strokes: list, ms_per_stroke: int = 900) -> None:
+        raise NotImplementedError
+
+
 class RecordingActuator(Actuator):
     """Test/dry-run actuator — records calls instead of touching the OS.
 
@@ -64,6 +81,11 @@ class RecordingActuator(Actuator):
     def scroll(self, x, y, dy):   self.calls.append(("scroll", x, y, dy))
     def type_text(self, text):    self.calls.append(("type_text", text))
     def key(self, combo):         self.calls.append(("key", combo))
+    def triple_click(self, x, y): self.calls.append(("triple_click", x, y))
+    def middle_click(self, x, y): self.calls.append(("middle_click", x, y))
+    def click_with(self, x, y, mods, button=1, count=1): self.calls.append(("click_with", x, y, mods))
+    def drag(self, x1, y1, x2, y2, ms=700): self.calls.append(("drag", x1, y1, x2, y2))
+    def draw(self, strokes, ms_per_stroke=900): self.calls.append(("draw", len(strokes)))
 
 
 class WindowsActuator(Actuator):
@@ -100,6 +122,52 @@ class WindowsActuator(Actuator):
 
     def type_text(self, text):
         self._kbd.type(text)
+
+    def triple_click(self, x, y):
+        self._mouse.position = (int(x), int(y))
+        self._mouse.click(self._Button.left, 3)
+
+    def middle_click(self, x, y):
+        self._mouse.position = (int(x), int(y))
+        self._mouse.click(self._Button.middle, 1)
+
+    def click_with(self, x, y, mods, button=1, count=1):
+        from pynput.keyboard import Key
+        names = {"ctrl": Key.ctrl, "control": Key.ctrl, "alt": Key.alt, "shift": Key.shift,
+                 "super": Key.cmd, "win": Key.cmd, "cmd": Key.cmd}
+        held = [names[m] for m in str(mods).lower().replace(",", "+").split("+") if m.strip() in names]
+        btn = {1: self._Button.left, 2: self._Button.middle, 3: self._Button.right}.get(int(button), self._Button.left)
+        for m in held:
+            self._kbd.press(m)
+        try:
+            self._mouse.position = (int(x), int(y))
+            self._mouse.click(btn, int(count))
+        finally:
+            for m in reversed(held):
+                self._kbd.release(m)
+
+    def _stroke(self, pts, ms):
+        import time as _t
+        self._mouse.position = (int(pts[0][0]), int(pts[0][1]))
+        _t.sleep(0.05)
+        self._mouse.press(self._Button.left)
+        try:
+            step = max(0.004, ms / 1000.0 / max(1, len(pts)))
+            for x, y in pts[1:]:
+                self._mouse.position = (int(x), int(y))
+                _t.sleep(step)
+        finally:
+            self._mouse.release(self._Button.left)
+
+    def drag(self, x1, y1, x2, y2, ms=700):
+        n = max(2, int(((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5 / 10))
+        pts = [(x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n) for i in range(n + 1)]
+        self._stroke(pts, ms)
+
+    def draw(self, strokes, ms_per_stroke=900):
+        for st in strokes:
+            if len(st) >= 2:
+                self._stroke(st, ms_per_stroke)
 
     def key(self, combo):
         """Press a key or chord: 'enter', 'cmd' (the Windows key), 'ctrl+c',
