@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from pathlib import Path
 import re
 import sys
 import time
@@ -966,6 +967,100 @@ class ActionsMixin:
             self._caption("Opening the page", hold=0.5)
             self._open_url(cmd.arg)
             await self._reply_local(cmd.say or "Opening it.")
+            return True
+        if k == "theme" and linux:
+            _sp.run(["gsettings", "set", "org.gnome.desktop.interface", "color-scheme",
+                     "prefer-dark" if cmd.arg == "dark" else "default"], timeout=4)
+            await self._reply_local(cmd.say)
+            return True
+        if k == "battery":
+            try:
+                base = "/sys/class/power_supply"
+                bats = [d for d in os.listdir(base) if d.startswith("BAT")]
+                cap = int(open(f"{base}/{bats[0]}/capacity").read().strip())
+                status = open(f"{base}/{bats[0]}/status").read().strip().lower()
+                await self._reply_local(f"Battery is at {cap} percent and {status}.")
+                return True
+            except Exception:
+                await self._reply_local("I can't read the battery on this computer.")
+                return True
+        if k == "media" and linux:
+            try:
+                names = _sp.run(["gdbus", "call", "--session", "--dest", "org.freedesktop.DBus", "--object-path",
+                                 "/org/freedesktop/DBus", "--method", "org.freedesktop.DBus.ListNames"],
+                                capture_output=True, text=True, timeout=4).stdout
+                players = re.findall(r"org\.mpris\.MediaPlayer2\.[\w.\-]+", names)
+                if not players:
+                    await self._reply_local("I don't see a music or video player running.")
+                    return True
+                _sp.run(["gdbus", "call", "--session", "--dest", players[0], "--object-path",
+                         "/org/mpris/MediaPlayer2", "--method", f"org.mpris.MediaPlayer2.Player.{cmd.arg}"],
+                        timeout=4, capture_output=True)
+                self._caption({"PlayPause": "Play / pause", "Next": "Next", "Previous": "Previous"}[cmd.arg], hold=0.5)
+                return True
+            except Exception:
+                return False
+        if k == "screenshot" and linux:
+            from screen import gnome_bridge as _gb
+            import datetime as _dt
+            if not _gb.available():
+                return False
+            info = _gb.screenshot()
+            if not info:
+                return False
+            dest_dir = Path.home() / "Pictures"
+            dest_dir.mkdir(exist_ok=True)
+            dest = dest_dir / _dt.datetime.now().strftime("Glance %Y-%m-%d %H-%M-%S.png")
+            os.replace(info["path"], dest)
+            await self._reply_local(f"Saved a screenshot to Pictures, {dest.name}.")
+            return True
+        if k == "timer":
+            import threading
+
+            def _fire(msg=cmd.arg):
+                try:
+                    _sp.Popen(["notify-send", "Glance", msg])
+                except Exception:
+                    pass
+                self._submit(self._reply_local(msg))
+            threading.Timer(max(1, cmd.n), _fire).start()
+            await self._reply_local(cmd.say)
+            return True
+        if k in ("macro_start", "macro_stop"):
+            self.sig_macro_cmd.emit(k, cmd.arg)          # Qt main thread owns the recorder
+            if k == "macro_start":
+                await self._reply_local(cmd.say)
+            return True
+        if k == "macro_list":
+            import macros as _m
+            ns = _m.names()
+            await self._reply_local("You have " + (", ".join(ns) if ns else "no macros yet") + ".")
+            return True
+        if k == "macro_run":
+            import macros as _m
+            data = _m.load(cmd.arg) if cmd.arg != "last" else getattr(self, "_last_macro", None)
+            if not data:
+                await self._reply_local("I don't have a macro called " + cmd.arg + ".")
+                return True
+            self._last_macro = data
+            try:
+                actuator = self._get_actuator()
+            except Exception:
+                return False
+            sc = 1.0
+            if linux:
+                from screen import gnome_bridge as _gb
+                sc = getattr(_gb, "last_scale", 1.0) or 1.0
+            self._set_stop_grab(True)
+            try:
+                self._cancel_flag = False
+                n = _m.replay(data["steps"], actuator, lambda x, y: (x * sc, y * sc),
+                              fly=lambda x, y, lbl: self.sig_point_at.emit(float(x), float(y), lbl),
+                              stop=lambda: self._cancel_flag)
+            finally:
+                self._set_stop_grab(False)
+                self.sig_point_release.emit()
+            await self._reply_local(f"Done. I ran {n} steps.")
             return True
         if k == "draw":
             try:

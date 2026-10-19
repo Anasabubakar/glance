@@ -55,3 +55,28 @@ def test_drawing_and_new_verbs_route_to_actions():
     for t in ("draw a star in the canvas", "circle the save button", "drag the file to the trash",
               "highlight the search bar", "could you underline the title"):
         assert r._local_route(t)["route"] == "act", t
+
+
+def test_typing_needs_real_content():
+    assert k("type hello everyone") == ("type", "hello everyone", "")
+    assert parse("type something in the editor") is None
+    assert parse("type a message to john in the chat box") is None
+    assert k('type "good morning"') == ("type", "good morning", "")
+
+
+def test_macros_timers_media_and_settings_commands():
+    assert k("start recording") == ("macro_start", "", "")
+    assert parse("start recording a macro called morning").arg == "morning"
+    assert k("stop recording") == ("macro_stop", "", "")
+    assert parse("stop recording and save it as invoice").arg == "invoice"
+    assert k("run the invoice macro") == ("macro_run", "invoice", "")
+    assert k("replay the last macro") == ("macro_run", "last", "")
+    t = parse("set a timer for 5 minutes")
+    assert t.kind == "timer" and t.n == 300
+    r = parse("remind me in 10 minutes to stretch")
+    assert r.kind == "timer" and r.n == 600 and r.arg == "stretch"
+    assert k("pause the music") == ("media", "PlayPause", "")
+    assert k("next song") == ("media", "Next", "")
+    assert k("turn on dark mode") == ("theme", "dark", "")
+    assert k("what's my battery") == ("battery", "", "")
+    assert k("take a screenshot") == ("screenshot", "", "")
