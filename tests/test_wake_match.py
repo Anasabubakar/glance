@@ -44,3 +44,11 @@ from audio.ambient_listener import wake_tail  # noqa: E402
 ])
 def test_wake_tail_is_the_command_after_the_wake_word(text, tail):
     assert wake_tail(text) == tail
+
+
+def test_collapse_repeats_and_noise():
+    from audio.ambient_listener import collapse_repeats
+    assert collapse_repeats("okay. okay. okay. okay. okay.") == "okay."
+    assert collapse_repeats("...  ...  ...  ...") == ""
+    assert collapse_repeats("hey glance open the calculator") == "hey glance open the calculator"
+    assert collapse_repeats("i would go slow. i would go slow. i would go slow.") == "i would go slow."

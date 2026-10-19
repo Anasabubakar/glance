@@ -84,6 +84,34 @@ def _word_is_wake(w: str) -> bool:
                 SequenceMatcher(None, _skeleton(w), _skeleton("glance")).ratio() >= 0.74)
 
 
+def collapse_repeats(text: str) -> str:
+    """Whisper sometimes loops over noise ("okay. okay. okay. okay."): keep one copy of a
+    phrase that repeats back to back, and drop an utterance that is nothing but noise."""
+    import re
+    words = re.findall(r"[A-Za-z0-9']+|[^\sA-Za-z0-9']", text or "")
+    if not words:
+        return ""
+    out = list(words)
+    for n in range(6, 0, -1):                          # longest repeated phrase first
+        i = 0
+        res = []
+        while i < len(out):
+            if i + 2 * n <= len(out) and out[i:i + n] == out[i + n:i + 2 * n]:
+                while i + 2 * n <= len(out) and out[i:i + n] == out[i + n:i + 2 * n]:
+                    i += n                              # skip the duplicate copy
+                res.extend(out[i:i + n])
+                i += n
+            else:
+                res.append(out[i])
+                i += 1
+        out = res
+    cleaned = " ".join(out)
+    cleaned = re.sub(r"\s+([.,!?;:])", r"\1", cleaned)
+    if not re.search(r"[A-Za-z0-9]", cleaned):
+        return ""                                       # only dots and punctuation
+    return cleaned.strip()
+
+
 def wake_tail(text: str) -> str:
     """The words spoken AFTER the wake word in the same utterance
     ('Hey Glance, open the projects folder' -> 'open the projects folder').
@@ -367,7 +395,7 @@ class AmbientListener:
                 if (seg.no_speech_prob > 0.6 and seg.avg_logprob < -0.7) or seg.avg_logprob < -1.3:
                     continue
                 kept.append(seg.text)
-            return " ".join(kept)
+            return collapse_repeats(" ".join(kept))
         finally:
             os.unlink(path)
 
