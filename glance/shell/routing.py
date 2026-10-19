@@ -58,6 +58,12 @@ class RoutingMixin:
         s = (transcript or "").strip().lower()
         if not s:
             return None
+        try:
+            from localcmd import parse as _parse_local
+            if _parse_local(s) is not None:
+                return "act"                 # an everyday command: do it instantly
+        except Exception:
+            pass
         # Explicit "do it" trigger (Glance's "…agent" pattern): a lead word that
         # FORCES the act path with no guessing — for control, and for reliable
         # demo takes. Checked BEFORE the length cap so long commands still trigger.
