@@ -437,6 +437,15 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-18" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.18 — Typing, drag and drop, drawing</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Typing fixed: the first text typed no longer gets lost</li>
+        <li>• Drag and drop, selecting and resizing</li>
+        <li>• Draw shapes or freehand with the mouse, and annotate the screen (circle, underline, arrow, label)</li>
+        <li>• Triple-click, middle-click, hover and ctrl/shift/alt-click</li>
+      </ul>
+
       <h2 id="v0-3-17" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.17 — Instant, verified, safer</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
