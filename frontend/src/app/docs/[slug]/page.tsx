@@ -437,6 +437,16 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-17" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.17 — Instant, verified, safer</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• Everyday commands (windows, apps, volume, keys, time, search) run instantly with no AI</li>
+        <li>• Glance verifies that an action changed the screen; Esc stops it; it asks before risky steps</li>
+        <li>• Click accuracy is measured per model and the best one is preferred</li>
+        <li>• One-click checkup on the Diagnostics page; Lesson Recording and Workflow Capture work on GNOME Wayland</li>
+        <li>• API keys are masked in the console, logs and diagnostics</li>
+      </ul>
+
       <h2 id="v0-3-16" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.16 — Open any app</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
