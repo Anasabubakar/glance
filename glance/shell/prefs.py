@@ -32,6 +32,8 @@ PREFS = [
          "Let Glance look things up online when it needs fresh information.", True, "Assistance"),
     Pref("GLANCE_CODE_MODE", "Code mode",
          "Automatically adapt answers when you're in an editor or terminal.", True, "Assistance"),
+    Pref("GLANCE_FALLBACK", "Fallback providers",
+         "If your chosen AI is busy or out of quota, quietly try your other providers.", True, "Assistance"),
     Pref("GLANCE_MULTILINGUAL", "Multilingual",
          "Understand and reply in the language you speak.", True, "Assistance"),
     Pref("GLANCE_OCR_FALLBACK", "Read screen text",
