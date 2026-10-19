@@ -34,14 +34,57 @@ class WorkflowCapture:
     def is_running(self) -> bool:
         return self._is_running
 
-    def start(self) -> bool:
+    def _start_gnome(self) -> bool:
+        """GNOME/Wayland: the compositor sees every click and key (pynput can't), so the
+        Glance extension reports them over D-Bus."""
         try:
-            from pynput import mouse, keyboard   # type: ignore
-        except ImportError:
+            from screen import gnome_bridge
+            if not gnome_bridge.available():
+                return False
+            from PyQt6.QtCore import QObject, pyqtSlot
+            from PyQt6.QtDBus import QDBusConnection
+            outer = self
+
+            class _Rx(QObject):
+                @pyqtSlot(str)
+                def on_event(self, js):
+                    import json
+                    try:
+                        e = json.loads(js)
+                    except ValueError:
+                        return
+                    if not outer._is_running:
+                        return
+                    d = {k: v for k, v in e.items() if k not in ("kind", "t")}
+                    if e.get("kind") == "key":
+                        d["key"] = e.get("char") or e.get("key", "")
+                    outer._events.append({"t": time.monotonic() - outer._t0,
+                                          "kind": e.get("kind", "?"), "data": d})
+
+            self._rx = _Rx()
+            ok = QDBusConnection.sessionBus().connect(
+                "app.glance.Overlay", "/app/glance/Overlay", "app.glance.Overlay",
+                "InputEvent", self._rx.on_event)
+            if not ok:
+                return False
+            gnome_bridge.set_recording(True)
+            self._gnome = True
+            return True
+        except Exception:
             return False
+
+    def start(self) -> bool:
         self._events = []
         self._t0 = time.monotonic()
         self._is_running = True
+        self._gnome = False
+        if self._start_gnome():
+            return True
+        try:
+            from pynput import mouse, keyboard   # type: ignore
+        except ImportError:
+            self._is_running = False
+            return False
 
         def on_click(x, y, button, pressed):
             if pressed and self._is_running:
@@ -70,6 +113,17 @@ class WorkflowCapture:
         if not self._is_running:
             return []
         self._is_running = False
+        if getattr(self, "_gnome", False):
+            try:
+                from screen import gnome_bridge
+                from PyQt6.QtDBus import QDBusConnection
+                gnome_bridge.set_recording(False)
+                QDBusConnection.sessionBus().disconnect(
+                    "app.glance.Overlay", "/app/glance/Overlay", "app.glance.Overlay",
+                    "InputEvent", self._rx.on_event)
+            except Exception:
+                pass
+            self._gnome = False
         for li in (self._listener_mouse, self._listener_kb):
             try:
                 if li:
@@ -85,11 +139,14 @@ class WorkflowCapture:
         lines = []
         for e in self._events[:40]:
             t = e["t"]
+            d = e["data"]
+            win = f" in '{d['window']}'" if d.get("window") else ""
             if e["kind"] == "click":
-                d = e["data"]
-                lines.append(f"  [{t:5.1f}s] click {d['button']} at ({d['x']}, {d['y']})")
+                lines.append(f"  [{t:5.1f}s] click {d.get('button', '')} at ({d.get('x')}, {d.get('y')}){win}")
+            elif e["kind"] == "scroll":
+                lines.append(f"  [{t:5.1f}s] scroll at ({d.get('x')}, {d.get('y')}){win}")
             else:
-                lines.append(f"  [{t:5.1f}s] key {e['data']['key']}")
+                lines.append(f"  [{t:5.1f}s] key {d.get('key', '')}{win}")
         if len(self._events) > 40:
             lines.append(f"  …and {len(self._events) - 40} more events.")
         return "Recorded workflow:\n" + "\n".join(lines)
