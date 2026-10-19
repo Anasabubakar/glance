@@ -437,6 +437,14 @@ function TroubleshootingContent() {
 function ChangelogContent() {
   return (
     <>
+      <h2 id="v0-3-13" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.13 — Fast, visible actions</h2>
+      <p className="text-text-dim text-sm mb-4">October 2026</p>
+      <ul className="space-y-2 text-text-muted mb-6">
+        <li>• About 2-3 seconds per step with Gemini: two models are asked at once and the first good answer wins</li>
+        <li>• Glance clicks the visible button so you see the cursor go there, instead of using a hidden shortcut</li>
+        <li>• If Gemini is too busy, Glance says so within 40 seconds instead of retrying for minutes</li>
+      </ul>
+
       <h2 id="v0-3-12" className="text-xl font-semibold mt-10 mb-4 scroll-mt-20">v0.3.12 — Accurate clicks</h2>
       <p className="text-text-dim text-sm mb-4">October 2026</p>
       <ul className="space-y-2 text-text-muted mb-6">
