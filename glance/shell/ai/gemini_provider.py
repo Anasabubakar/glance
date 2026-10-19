@@ -150,11 +150,21 @@ def _order(cands: list, vision: bool) -> list:
     # model beats them, and a proven 6 s model loses to them). Ties keep newest-first.
     def guess(c):
         return 2.0 if "lite" in c else (4.0 if "preview" in c else 3.0)
+    acc = {}
+    if vision:
+        try:
+            from ai.grounding import load_scores
+            acc = load_scores()                  # measured click accuracy per model
+        except Exception:
+            acc = {}
+
     def cost(c):
         t = _lat.get(f"{c}|{tag}", guess(c))
-        # Lite models can place clicks less precisely: for vision they must be
-        # clearly faster (2.5x) than a full flash model to be preferred.
-        return t * 2.5 if (vision and "lite" in c) else t
+        if vision and acc:
+            # Measured accuracy matters more than a second of speed: a model that
+            # misses 60% of clicks is useless however fast it answers.
+            t = t / max(acc.get(c, 0.5), 0.15) ** 2
+        return t
     return sorted(ready, key=cost)
 
 
